@@ -44,6 +44,36 @@ class PasswordTest {
     }
 
     @Nested
+    @DisplayName("When reconstituting from a stored hash")
+    class FromHash {
+
+        @Test
+        @DisplayName("Should bypass strength validation for a BCrypt hash")
+        void shouldBypassValidationForHash() {
+            // A BCrypt hash doesn't satisfy the plain-password strength rules,
+            // so fromHash must skip validation.
+            String bcryptHash = "$2a$10$abcdefghijklmnopqrstuv";
+            Password password = Password.fromHash(bcryptHash);
+
+            assertThat(password.value()).isEqualTo(bcryptHash);
+        }
+
+        @Test
+        @DisplayName("Should reject null hash")
+        void shouldRejectNullHash() {
+            assertThatThrownBy(() -> Password.fromHash(null))
+                    .isInstanceOf(IllegalArgumentException.class);
+        }
+
+        @Test
+        @DisplayName("Should reject blank hash")
+        void shouldRejectBlankHash() {
+            assertThatThrownBy(() -> Password.fromHash("   "))
+                    .isInstanceOf(IllegalArgumentException.class);
+        }
+    }
+
+    @Nested
     @DisplayName("When creating a password that violates strength rules")
     class InvalidCreation {
 

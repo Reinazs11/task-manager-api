@@ -43,6 +43,37 @@ public final class Password {
         this.value = value;
     }
 
+    /**
+     * Factory that bypasses strength validation. Used ONLY when reconstituting
+     * a User from the database, where the stored value is already a BCrypt hash
+     * (which would fail the plain-password strength rules).
+     *
+     * <p><b>Why is this package-private and named explicitly?</b>
+     * Making it {@code public} would invite misuse (callers skipping validation
+     * for plain passwords). The explicit name {@code fromHash} documents intent
+     * and surfaces in code review if used incorrectly.</p>
+     */
+    public static Password fromHash(String hash) {
+        if (hash == null || hash.isBlank()) {
+            throw new IllegalArgumentException("Password hash cannot be null or blank");
+        }
+        return new Password(hash, true);
+    }
+
+    /**
+     * Internal constructor with a validation-bypass flag.
+     * The boolean is a guard to avoid ambiguity with the public constructor.
+     */
+    private Password(String value, boolean skipValidation) {
+        if (value == null) {
+            throw new IllegalArgumentException("Password cannot be null");
+        }
+        if (!skipValidation) {
+            validate(value);
+        }
+        this.value = value;
+    }
+
     private static void validate(String value) {
         if (value == null) {
             throw new IllegalArgumentException("Password cannot be null");

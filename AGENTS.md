@@ -94,7 +94,7 @@ docs: update README with new endpoints
 
 ## Pending design decisions (document here when decided)
 - [ ] Logging strategy (default SLF4J? Logback? Structured logging?)
-- [ ] API versioning (v1 in path? header?)
+- [x] **API versioning: `/api/v1/...` prefix on all endpoints** (decided: path-based)
 - [ ] Schema migration strategy (Flyway? Liquibase? ddl-auto=validate?)
 
 ## Modern stack — quick reference
