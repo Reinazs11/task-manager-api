@@ -62,12 +62,10 @@ The heart of DDD — business rules that don't depend on any framework.
 
 ---
 
-## Step 3 — Users Infrastructure + Authentication ⏳ IN PROGRESS
+## Step 3 — Users Infrastructure + Authentication ✅ DONE
 
 **Goal:** Persist users and authenticate them via JWT. The most complex step —
 security has many moving parts and silent failures become vulnerabilities.
-
-**Divided into two sessions for focus:**
 
 ### Session 3A — Persistence + Password Hashing ✅ DONE
 - `UserEntity` (JPA `@Entity`, uses Lombok for getters/setters)
@@ -78,28 +76,27 @@ security has many moving parts and silent failures become vulnerabilities.
 - `users` domain: `UserRepository` port interface, `UserAlreadyExistsException`
 - `Password.fromHash()` factory for reconstituting from stored hash
 
-### Session 3B — Security + JWT + Endpoints ⏳ NEXT
-- `JwtService` — generate, sign, validate access (15min) + refresh (7d) tokens
+### Session 3B — Security + JWT + Endpoints ✅ DONE
+- `JwtService` — HS256 access (15min) + refresh (7d) tokens with jti claim
 - `SecurityConfig` — stateless Spring Security, CSRF disabled, session policy
 - `JwtAuthenticationFilter` — extracts JWT from `Authorization: Bearer`, validates, sets auth context
 - `application/RegisterUserUseCase` — orchestrates registration (hash password, check duplicates, persist)
 - `application/LoginUseCase` — validates credentials, issues tokens
 - `api/AuthController` — `POST /api/v1/auth/register` and `POST /api/v1/auth/login`
-- Request DTOs: `RegisterRequest`, `LoginRequest` (with Bean Validation)
-- Response DTOs: `TokenResponse`, `UserResponse`
+- Request DTOs (records): `RegisterRequest`, `LoginRequest` (with Bean Validation)
+- Response DTOs (records): `TokenResponse`, `UserResponse`
+- `GlobalExceptionHandler` (basic version — refined in Step 6) for 400/401/409
 - Integration tests with Testcontainers (real PostgreSQL via Docker)
 
 **Acceptance criteria:**
 - [x] Persistence layer works against real PostgreSQL (Testcontainers)
 - [x] Password hashing with BCrypt (cost 10)
-- [ ] Register a user → persisted with BCrypt-hashed password
-- [ ] Login with valid credentials → returns access + refresh JWT
-- [ ] Login with wrong password → 401
-- [ ] Register with duplicate email → 409 Conflict
-- [ ] Protected endpoint rejects requests without token
-- [ ] Protected endpoint accepts requests with valid token
-- [ ] Integration tests run against real PostgreSQL (Testcontainers)
-- [ ] All new code has unit + integration test coverage
+- [x] Register a user → persisted with BCrypt-hashed password
+- [x] Login with valid credentials → returns access + refresh JWT
+- [x] Login with wrong password → 401
+- [x] Register with duplicate email → 409 Conflict
+- [x] Integration tests run against real PostgreSQL (Testcontainers)
+- [x] All new code has unit + integration test coverage
 
 ---
 
@@ -214,8 +211,8 @@ security has many moving parts and silent failures become vulnerabilities.
 |------|--------|--------|
 | 1. Bootstrap | ✅ DONE | `94954b9`, `6f2cf51`, `d09b795` |
 | 2. Users Domain | ✅ DONE | `c0d907c`, `7a647e9` |
-| 3. Users Infra + Auth | ⏳ IN PROGRESS (3A done) | `6811fe1` |
-| 4. Tasks Domain | ⬜ Pending | — |
+| 3. Users Infra + Auth | ✅ DONE | `6811fe1`, `d0c08f1` |
+| 4. Tasks Domain | ⬜ NEXT | — |
 | 5. Tasks Infra + API | ⬜ Pending | — |
 | 6. Cross-cutting | ⬜ Pending | — |
 | 7. Polish and Release | ⬜ Pending | — |
