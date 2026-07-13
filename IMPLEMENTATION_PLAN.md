@@ -62,34 +62,36 @@ The heart of DDD — business rules that don't depend on any framework.
 
 ---
 
-## Step 3 — Users Infrastructure + Authentication ⏳ NEXT
+## Step 3 — Users Infrastructure + Authentication ⏳ IN PROGRESS
 
 **Goal:** Persist users and authenticate them via JWT. The most complex step —
 security has many moving parts and silent failures become vulnerabilities.
 
 **Divided into two sessions for focus:**
 
-### Session 3A — Persistence + Password Hashing
+### Session 3A — Persistence + Password Hashing ✅ DONE
 - `UserEntity` (JPA `@Entity`, uses Lombok for getters/setters)
 - `UserJpaRepository` (Spring Data JPA interface)
 - `UserRepositoryImpl` — implements domain `UserRepository` port
 - `UserMapper` (MapStruct) — `User` ↔ `UserEntity` ↔ DTOs
 - `PasswordHasher` interface (domain port) + `BCryptPasswordHasher` (infra)
 - `users` domain: `UserRepository` port interface, `UserAlreadyExistsException`
-- `application.yml`: Hibernate dialect, connection pool tuning
+- `Password.fromHash()` factory for reconstituting from stored hash
 
-### Session 3B — Security + JWT + Endpoints
+### Session 3B — Security + JWT + Endpoints ⏳ NEXT
 - `JwtService` — generate, sign, validate access (15min) + refresh (7d) tokens
 - `SecurityConfig` — stateless Spring Security, CSRF disabled, session policy
 - `JwtAuthenticationFilter` — extracts JWT from `Authorization: Bearer`, validates, sets auth context
 - `application/RegisterUserUseCase` — orchestrates registration (hash password, check duplicates, persist)
 - `application/LoginUseCase` — validates credentials, issues tokens
-- `api/AuthController` — `POST /auth/register` and `POST /auth/login`
+- `api/AuthController` — `POST /api/v1/auth/register` and `POST /api/v1/auth/login`
 - Request DTOs: `RegisterRequest`, `LoginRequest` (with Bean Validation)
 - Response DTOs: `TokenResponse`, `UserResponse`
 - Integration tests with Testcontainers (real PostgreSQL via Docker)
 
 **Acceptance criteria:**
+- [x] Persistence layer works against real PostgreSQL (Testcontainers)
+- [x] Password hashing with BCrypt (cost 10)
 - [ ] Register a user → persisted with BCrypt-hashed password
 - [ ] Login with valid credentials → returns access + refresh JWT
 - [ ] Login with wrong password → 401
@@ -210,9 +212,9 @@ security has many moving parts and silent failures become vulnerabilities.
 
 | Step | Status | Commit |
 |------|--------|--------|
-| 1. Bootstrap | ✅ DONE | `94954b9` |
+| 1. Bootstrap | ✅ DONE | `94954b9`, `6f2cf51`, `d09b795` |
 | 2. Users Domain | ✅ DONE | `c0d907c`, `7a647e9` |
-| 3. Users Infra + Auth | ⏳ NEXT | — |
+| 3. Users Infra + Auth | ⏳ IN PROGRESS (3A done) | `6811fe1` |
 | 4. Tasks Domain | ⬜ Pending | — |
 | 5. Tasks Infra + API | ⬜ Pending | — |
 | 6. Cross-cutting | ⬜ Pending | — |
