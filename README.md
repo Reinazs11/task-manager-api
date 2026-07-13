@@ -1,75 +1,65 @@
 # Task Manager API
 
-> Portfólio em construção. API REST para gestão de tarefas com autenticação
-> JWT, construída com Java 21 e Spring Boot 3.
+> Work in progress. REST API for task management with JWT authentication,
+> built with Java 21 and Spring Boot 3.
 
 ## 🚀 Stack
 
 - **Java 21** + **Spring Boot 3.3**
-- **Spring Security** com **JWT** (access token 15min + refresh token 7 dias)
+- **Spring Security** with **JWT** (access token 15min + refresh token 7 days)
 - **PostgreSQL 16** + Spring Data JPA
-- **Testcontainers** para testes de integração com banco real
-- **Docker** + **docker-compose** (um comando sobe tudo)
-- **OpenAPI 3 / Swagger UI** para documentação
-- **JaCoCo** com cobertura mínima de 80%
-- **DDD simplificado** + **Clean Code** + **TDD**
+- **Testcontainers** for integration tests against a real database
+- **Docker** + **docker-compose** (one command brings everything up)
+- **OpenAPI 3 / Swagger UI** for documentation
+- **JaCoCo** with minimum coverage of 80%
+- **Simplified DDD** + **Clean Code** + **TDD**
 
-## 📋 Como rodar
+## 📋 How to run
 
-### Pré-requisitos
-- Docker e Docker Compose instalados
+### Prerequisites
+- Docker and Docker Compose installed
 
-### Subir tudo (Postgres + API)
+### Bring everything up (Postgres + API)
 
 ```bash
 cp .env.example .env
 docker compose up --build
 ```
 
-A API sobe em `http://localhost:8080`.
+The API starts at `http://localhost:8080`.
 Swagger UI: `http://localhost:8080/swagger-ui.html`
 
-### Apenas o banco (para rodar a app via IDE)
+### Database only (to run the app from your IDE)
 
 ```bash
 docker compose up postgres
 ```
 
-Depois rode a aplicação pela sua IDE (IntelliJ IDEA) com profile `dev`.
+Then run the application from your IDE (IntelliJ IDEA) with the `dev` profile.
 
-## 🧪 Testes
+## 🧪 Tests
 
 ```bash
-./mvnw test         # roda testes unitários + integração
-./mvnw verify       # roda testes + verifica cobertura JaCoCo (mínimo 80%)
+./mvnw test      # runs unit + integration tests
+./mvnw verify    # runs tests + checks JaCoCo coverage (min 80%)
 ```
 
-Relatório de cobertura em `target/site/jacoco/index.html`.
+Coverage report at `target/site/jacoco/index.html`.
 
-## 🏗️ Arquitetura
+## 🏗️ Architecture
 
-DDD simplificado, organizado por **bounded context**:
+Simplified DDD, organized by **bounded context**:
 
 ```
 com.renan.taskmanager.<context>/
-  domain/         # entidades, value objects, regras (sem Spring)
-  application/    # serviços de aplicação, use cases
-  infrastructure/ # JPA repositories, configs de segurança
+  domain/         # entities, value objects, business rules (no Spring)
+  application/    # application services, use cases
+  infrastructure/ # JPA repositories, security configs
   api/            # controllers, advice, DTOs
 ```
 
-Contextos: `users` (autenticação) e `tasks` (projetos e tarefas).
+Contexts: `users` (authentication) and `tasks` (projects and tasks).
 
-## 📌 Status
+## 📄 License
 
-- [x] Etapa 1: Bootstrap do projeto
-- [ ] Etapa 2: Domínio Users
-- [ ] Etapa 3: Infra Users + Auth
-- [ ] Etapa 4: Domínio Tasks
-- [ ] Etapa 5: Infra Tasks + API CRUD
-- [ ] Etapa 6: Cross-cutting (erros, docs, logs)
-- [ ] Etapa 7: Polish final
-
-## 📄 Licença
-
-Projeto de portfólio — uso educacional.
+Portfolio project — educational use.
