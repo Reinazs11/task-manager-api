@@ -1,0 +1,56 @@
+# docker-compose.yml — Ambiente de desenvolvimento completo.
+# Sobe PostgreSQL + a aplicação Task Manager API com um único comando.
+#
+# Uso:
+#   docker compose up           # sobe tudo (Postgres + App)
+#   docker compose up postgres  # sobe só o banco (útil para rodar app via IDE)
+#   docker compose down         # para e remove containers
+#   docker compose down -v      # para e APAGA os dados do banco
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: taskmanager-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-taskmanager}
+      POSTGRES_USER: ${POSTGRES_USER:-taskmanager}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-taskmanager}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-taskmanager}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - taskmanager-net
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: taskmanager-app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${POSTGRES_DB:-taskmanager}
+      DB_USER: ${POSTGRES_USER:-taskmanager}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-taskmanager}
+      SPRING_PROFILES_ACTIVE: dev
+      JWT_SECRET: ${JWT_SECRET:-}
+    ports:
+      - "8080:8080"
+    networks:
+      - taskmanager-net
+
+volumes:
+  pgdata:
+
+networks:
+  taskmanager-net:
+    driver: bridge
