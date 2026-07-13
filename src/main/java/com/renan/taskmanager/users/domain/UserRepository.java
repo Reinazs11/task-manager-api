@@ -35,4 +35,13 @@ public interface UserRepository {
      * <p>Useful for registration checks without loading the whole aggregate.</p>
      */
     boolean existsByEmail(Email email);
+
+    /**
+     * Removes all users. Used by integration tests to guarantee isolation.
+     *
+     * <p><b>Note:</b> this is a test-only operation. We expose it on the port
+     * (rather than reaching into the JPA repo from tests) so the domain contract
+     * is the single entry point for persistence, even in tests.</p>
+     */
+    void deleteAll();
 }

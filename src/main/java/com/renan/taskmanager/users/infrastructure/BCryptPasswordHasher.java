@@ -35,10 +35,10 @@ public class BCryptPasswordHasher implements PasswordHasher {
     }
 
     @Override
-    public boolean matches(Password plainPassword, String hash) {
+    public boolean matches(String plainAttempt, String hash) {
         if (hash == null || hash.isBlank()) {
             return false;
         }
-        return encoder.matches(plainPassword.value(), hash);
+        return encoder.matches(plainAttempt, hash);
     }
 }

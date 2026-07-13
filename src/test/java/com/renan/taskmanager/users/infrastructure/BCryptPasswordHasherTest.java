@@ -78,7 +78,7 @@ class BCryptPasswordHasherTest {
             Password password = new Password("Password123");
             String hash = hasher.hash(password);
 
-            boolean matches = hasher.matches(password, hash);
+            boolean matches = hasher.matches(password.value(), hash);
 
             assertThat(matches).isTrue();
         }
@@ -89,8 +89,7 @@ class BCryptPasswordHasherTest {
             Password original = new Password("Password123");
             String hash = hasher.hash(original);
 
-            Password wrong = new Password("DifferentPassword456");
-            boolean matches = hasher.matches(wrong, hash);
+            boolean matches = hasher.matches("DifferentPassword456", hash);
 
             assertThat(matches).isFalse();
         }
@@ -98,9 +97,7 @@ class BCryptPasswordHasherTest {
         @Test
         @DisplayName("Should return false when the stored hash is null")
         void shouldReturnFalseForNullHash() {
-            Password password = new Password("Password123");
-
-            boolean matches = hasher.matches(password, null);
+            boolean matches = hasher.matches("Password123", null);
 
             assertThat(matches).isFalse();
         }
@@ -108,9 +105,7 @@ class BCryptPasswordHasherTest {
         @Test
         @DisplayName("Should return false when the stored hash is blank")
         void shouldReturnFalseForBlankHash() {
-            Password password = new Password("Password123");
-
-            boolean matches = hasher.matches(password, "");
+            boolean matches = hasher.matches("Password123", "");
 
             assertThat(matches).isFalse();
         }

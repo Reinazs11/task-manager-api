@@ -47,4 +47,9 @@ public class UserRepositoryImpl implements UserRepository {
     public boolean existsByEmail(Email email) {
         return jpaRepository.existsByEmail(email.value());
     }
+
+    @Override
+    public void deleteAll() {
+        jpaRepository.deleteAll();
+    }
 }

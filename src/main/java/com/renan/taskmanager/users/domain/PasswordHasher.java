@@ -17,16 +17,21 @@ public interface PasswordHasher {
      * Hashes a plain password using the configured algorithm.
      *
      * @param plainPassword validated plain password
-     * @return the resulting hash (include salt/params so it's self-describing)
+     * @return the resulting hash (includes salt/params so it's self-describing)
      */
     String hash(Password plainPassword);
 
     /**
-     * Verifies that a plain password matches a stored hash.
+     * Verifies that a plain password attempt matches a stored hash.
      *
-     * @param plainPassword password supplied at login
-     * @param hash          previously stored hash
+     * <p><b>Why a raw String instead of a Password value object?</b>
+     * At login time we don't want to enforce strength rules on the incoming
+     * attempt — an old/different-policy password should still be comparable.
+     * Accepting a String decouples verification from domain validation.</p>
+     *
+     * @param plainAttempt password supplied at login
+     * @param hash         previously stored hash
      * @return true if they match
      */
-    boolean matches(Password plainPassword, String hash);
+    boolean matches(String plainAttempt, String hash);
 }
