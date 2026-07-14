@@ -79,8 +79,11 @@ docs: update README with new endpoints
 - Feature branches: `feat/<scope>`, `fix/<scope>`, `test/<scope>`.
 
 ## Workflow with the agent
-1. **Complex step = plan first.** Don't start dumping code without aligning
-   on the step's scope.
+1. **MANDATORY planning before every Step.** Before writing any code for a new
+   Step, produce a written plan covering: files to create/edit, design decisions,
+   test plan (what to test, which layer: unit vs integration), and edge cases to
+   cover. Get explicit approval before executing. This prevents coverage gaps
+   like the one found in Step 3 (missing authorization tests).
 2. Break implementation into steps (e.g. "Step 1: bootstrap + config",
    "Step 2: users domain"...).
 3. Show what will be done, execute, verify (build + tests), report.
