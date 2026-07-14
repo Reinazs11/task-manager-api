@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Tests for the {@link ProjectId} value object.
@@ -41,5 +42,13 @@ class ProjectIdTest {
         ProjectId b = ProjectId.of(uuid);
 
         assertThat(a).isEqualTo(b).hasSameHashCodeAs(b);
+    }
+
+    @Test
+    @DisplayName("Should reject null UUID in of()")
+    void shouldRejectNullUUID() {
+        assertThatThrownBy(() -> ProjectId.of(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessageContaining("ProjectId");
     }
 }

@@ -23,12 +23,12 @@ public class Project {
 
     private final ProjectId id;
     private final UserId ownerId;
-    private String name;
+    private ProjectName name;
     private final List<Task> tasks;
     private final Instant createdAt;
     private Instant updatedAt;
 
-    private Project(ProjectId id, UserId ownerId, String name,
+    private Project(ProjectId id, UserId ownerId, ProjectName name,
                     List<Task> tasks, Instant createdAt, Instant updatedAt) {
         this.id = Objects.requireNonNull(id, "ProjectId is required");
         this.ownerId = Objects.requireNonNull(ownerId, "OwnerId is required");
@@ -41,17 +41,32 @@ public class Project {
     /**
      * Factory for a new empty project.
      */
-    public static Project create(UserId ownerId, String name) {
+    public static Project create(UserId ownerId, ProjectName name) {
         Instant now = Instant.now();
         return new Project(ProjectId.generate(), ownerId, name, new ArrayList<>(), now, now);
     }
 
     /**
+     * Convenience factory accepting a raw String name (validated via ProjectName).
+     */
+    public static Project create(UserId ownerId, String name) {
+        return create(ownerId, new ProjectName(name));
+    }
+
+    /**
      * Reconstitutes a project from persisted data.
+     */
+    public static Project reconstitute(ProjectId id, UserId ownerId, ProjectName name,
+                                        List<Task> tasks, Instant createdAt, Instant updatedAt) {
+        return new Project(id, ownerId, name, tasks, createdAt, updatedAt);
+    }
+
+    /**
+     * Convenience reconstitute accepting a raw String name (validated via ProjectName).
      */
     public static Project reconstitute(ProjectId id, UserId ownerId, String name,
                                         List<Task> tasks, Instant createdAt, Instant updatedAt) {
-        return new Project(id, ownerId, name, tasks, createdAt, updatedAt);
+        return reconstitute(id, ownerId, new ProjectName(name), tasks, createdAt, updatedAt);
     }
 
     /**
@@ -86,7 +101,7 @@ public class Project {
         return ownerId;
     }
 
-    public String getName() {
+    public ProjectName getName() {
         return name;
     }
 

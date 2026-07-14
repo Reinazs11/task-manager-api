@@ -5,6 +5,10 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -30,7 +34,7 @@ class ProjectTest {
 
             assertThat(project.getId()).isNotNull();
             assertThat(project.getOwnerId()).isEqualTo(OWNER);
-            assertThat(project.getName()).isEqualTo("Backend Refactor");
+            assertThat(project.getName().value()).isEqualTo("Backend Refactor");
         }
 
         @Test
@@ -48,6 +52,83 @@ class ProjectTest {
 
             assertThat(project.getCreatedAt()).isNotNull();
             assertThat(project.getUpdatedAt()).isEqualTo(project.getCreatedAt());
+        }
+
+        @Test
+        @DisplayName("Should reject blank name")
+        void shouldRejectBlankName() {
+            assertThatThrownBy(() -> Project.create(OWNER, "   "))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("blank");
+        }
+
+        @Test
+        @DisplayName("Should reject empty name")
+        void shouldRejectEmptyName() {
+            assertThatThrownBy(() -> Project.create(OWNER, ""))
+                    .isInstanceOf(IllegalArgumentException.class);
+        }
+
+        @Test
+        @DisplayName("Should reject null name")
+        void shouldRejectNullName() {
+            assertThatThrownBy(() -> Project.create(OWNER, (String) null))
+                    .isInstanceOf(IllegalArgumentException.class);
+        }
+    }
+
+    @Nested
+    @DisplayName("Reconstitution from persisted data")
+    class Reconstitution {
+
+        @Test
+        @DisplayName("Should preserve id, owner, name, tasks, and timestamps")
+        void shouldPreserveAllFields() {
+            ProjectId id = ProjectId.generate();
+            Instant createdAt = Instant.parse("2024-01-01T10:00:00Z");
+            Instant updatedAt = Instant.parse("2024-06-15T14:30:00Z");
+
+            Project project = Project.reconstitute(
+                    id, OWNER, "Persisted Project",
+                    List.of(), createdAt, updatedAt
+            );
+
+            assertThat(project.getId()).isEqualTo(id);
+            assertThat(project.getOwnerId()).isEqualTo(OWNER);
+            assertThat(project.getName().value()).isEqualTo("Persisted Project");
+            assertThat(project.getCreatedAt()).isEqualTo(createdAt);
+            assertThat(project.getUpdatedAt()).isEqualTo(updatedAt);
+        }
+
+        @Test
+        @DisplayName("Should expose pre-existing tasks via tasks()")
+        void shouldExposePreExistingTasks() {
+            Task existing = Task.create(ProjectId.generate(), OWNER, TITLE);
+
+            Project project = Project.reconstitute(
+                    ProjectId.generate(), OWNER, "With Tasks",
+                    List.of(existing), Instant.now(), Instant.now()
+            );
+
+            assertThat(project.tasks()).hasSize(1);
+            assertThat(project.tasks().get(0).getTitle()).isEqualTo(TITLE);
+        }
+
+        @Test
+        @DisplayName("Should make a defensive copy of the input task list")
+        void shouldMakeDefensiveCopy() {
+            // Caller keeps a reference to the list they passed in.
+            List<Task> mutableInput = new ArrayList<>();
+            Project project = Project.reconstitute(
+                    ProjectId.generate(), OWNER, "Defensive",
+                    mutableInput, Instant.now(), Instant.now()
+            );
+
+            // Caller mutates their list AFTER construction.
+            mutableInput.add(Task.create(ProjectId.generate(), OWNER, TITLE));
+
+            // Project's internal list must NOT reflect the external mutation.
+            assertThat(project.tasks()).isEmpty();
         }
     }
 
