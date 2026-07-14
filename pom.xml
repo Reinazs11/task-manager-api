@@ -25,6 +25,8 @@
         <springdoc.version>2.6.0</springdoc.version>
         <testcontainers.version>1.20.4</testcontainers.version>
         <jacoco.version>0.8.12</jacoco.version>
+        <archunit.version>1.3.0</archunit.version>
+        <pitest.version>1.16.1</pitest.version>
     </properties>
 
     <dependencies>
@@ -119,6 +121,14 @@
             <artifactId>spring-boot-testcontainers</artifactId>
             <scope>test</scope>
         </dependency>
+
+        <!-- Architecture tests: enforce DDD layering rules -->
+        <dependency>
+            <groupId>com.tngtech.archunit</groupId>
+            <artifactId>archunit-junit5</artifactId>
+            <version>${archunit.version}</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
@@ -201,5 +211,43 @@
             </plugin>
         </plugins>
     </build>
+
+    <!--
+        PIT mutation testing — runs ONLY when the `pit` profile is activated.
+        Usage: mvn -P pit test-compile org.pitest:pitest-maven:mutationCoverage
+        It mutates production code and checks if tests catch the mutations.
+        Surviving mutations = weak tests (even with 100% JaCoCo coverage).
+        Intentionally NOT in the default build: it's slow (2-10x normal test time).
+    -->
+    <profiles>
+        <profile>
+            <id>pit</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.pitest</groupId>
+                        <artifactId>pitest-maven</artifactId>
+                        <version>${pitest.version}</version>
+                        <configuration>
+                            <targetClasses>
+                                <param>com.renan.taskmanager.*</param>
+                            </targetClasses>
+                            <targetTests>
+                                <param>com.renan.taskmanager.*</param>
+                            </targetTests>
+                            <outputFormats>
+                                <outputFormat>XML</outputFormat>
+                                <outputFormat>HTML</outputFormat>
+                            </outputFormats>
+                            <timestampedReports>false</timestampedReports>
+                            <jvmArgs>
+                                <jvmArg>-Xmx1024m</jvmArg>
+                            </jvmArgs>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 
 </project>
