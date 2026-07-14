@@ -100,28 +100,30 @@ security has many moving parts and silent failures become vulnerabilities.
 
 ---
 
-## Step 4 — Tasks Domain
+## Step 4 — Tasks Domain ✅ DONE
 
 **Goal:** Pure domain layer for the tasks context (projects + tasks).
 
 **Implements:**
-- `TaskStatus` enum (TODO, IN_PROGRESS, DONE) — possibly sealed interface
-- `Priority` enum (LOW, MEDIUM, HIGH)
-- `ProjectId`, `TaskId` value objects
-- `Project` entity (aggregate root) — belongs to a User
-- `Task` entity (belongs to a Project) — title, description, status, priority
+- `TaskStatus` enum (TODO, IN_PROGRESS, DONE) with restricted transition graph
+- `Priority` enum (LOW, MEDIUM, HIGH) with weight for sorting, MEDIUM default
+- `ProjectId`, `TaskId` value objects (UUID-based, type-safe)
+- `TaskTitle` value object (non-blank, max 200 chars, trimmed)
+- `Project` aggregate root — owns tasks via addTask(), tasks() returns immutable view
+- `Task` entity — belongs to Project, enforces status transitions
 - Domain rules:
-  - Task cannot be created without a project
-  - Status transitions enforced (e.g., DONE cannot go back to TODO without explicit action)
-  - Project owner validation (tasks only visible to project owner)
-- Domain exceptions: `ProjectNotFoundException`, `TaskNotFoundException`,
-  `InvalidStatusTransitionException`
+  - Task cannot be created without a project (enforced by aggregate root)
+  - Status transitions enforced (TODO -> IN_PROGRESS -> DONE; DONE -> TODO forbidden)
+  - Added task inherits the project's id and owner
+- Domain exception: `InvalidStatusTransitionException`
 
 **Acceptance criteria:**
-- [ ] Pure domain, no framework dependencies
-- [ ] TDD: status transition rules fully tested
-- [ ] Entities enforce invariants on construction and mutation
-- [ ] All value objects immutable and validated
+- [x] Pure domain, no framework dependencies
+- [x] TDD: status transition rules fully tested
+- [x] Entities enforce invariants on construction and mutation
+- [x] All value objects immutable and validated
+- [x] tasks() returns immutable list
+- [x] 48 new tests (81 -> 129 total), all passing
 
 ---
 
@@ -211,9 +213,9 @@ security has many moving parts and silent failures become vulnerabilities.
 |------|--------|--------|
 | 1. Bootstrap | ✅ DONE | `94954b9`, `6f2cf51`, `d09b795` |
 | 2. Users Domain | ✅ DONE | `c0d907c`, `7a647e9` |
-| 3. Users Infra + Auth | ✅ DONE | `6811fe1`, `d0c08f1` |
-| 4. Tasks Domain | ⬜ NEXT | — |
-| 5. Tasks Infra + API | ⬜ Pending | — |
+| 3. Users Infra + Auth | ✅ DONE | `6811fe1`, `d0c08f1`, `32525ba` |
+| 4. Tasks Domain | ✅ DONE | `955ca31` |
+| 5. Tasks Infra + API | ⬜ NEXT | — |
 | 6. Cross-cutting | ⬜ Pending | — |
 | 7. Polish and Release | ⬜ Pending | — |
 
