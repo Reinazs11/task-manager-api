@@ -1,9 +1,13 @@
 package com.renan.taskmanager.common.api;
 
+import com.renan.taskmanager.tasks.domain.InvalidStatusTransitionException;
+import com.renan.taskmanager.tasks.domain.ProjectNotFoundException;
+import com.renan.taskmanager.tasks.domain.TaskNotFoundException;
 import com.renan.taskmanager.users.domain.InvalidCredentialsException;
 import com.renan.taskmanager.users.domain.UserAlreadyExistsException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -14,27 +18,20 @@ import java.util.Map;
 /**
  * Global exception handler that normalizes all errors into a consistent JSON shape.
  *
- * <p><b>Why centralized?</b>
- * Without this, Spring returns its own inconsistent error bodies (sometimes empty,
- * sometimes a stacktrace). This handler enforces a single contract:</p>
- *
+ * <p>Single contract:</p>
  * <pre>
  * {
  *   "timestamp": "...",
  *   "status": 409,
  *   "error": "Conflict",
- *   "message": "A user with email 'x@y.com' already exists",
- *   "path": "/api/v1/auth/register"
+ *   "message": "..."
  * }
  * </pre>
- *
- * <p>This is the version used in Step 3B. The full version (with validation
- * details and path capture) is refined in Step 6 — but we need the basics now
- * so integration tests can assert 409/401 status codes.</p>
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    // ===== Auth exceptions =====
     @ExceptionHandler(UserAlreadyExistsException.class)
     public ResponseEntity<Object> handleUserAlreadyExists(UserAlreadyExistsException ex) {
         return buildResponse(HttpStatus.CONFLICT, ex.getMessage());
@@ -45,6 +42,28 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.UNAUTHORIZED, ex.getMessage());
     }
 
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<Object> handleAccessDenied(AccessDeniedException ex) {
+        return buildResponse(HttpStatus.FORBIDDEN, ex.getMessage());
+    }
+
+    // ===== Tasks exceptions =====
+    @ExceptionHandler(ProjectNotFoundException.class)
+    public ResponseEntity<Object> handleProjectNotFound(ProjectNotFoundException ex) {
+        return buildResponse(HttpStatus.NOT_FOUND, ex.getMessage());
+    }
+
+    @ExceptionHandler(TaskNotFoundException.class)
+    public ResponseEntity<Object> handleTaskNotFound(TaskNotFoundException ex) {
+        return buildResponse(HttpStatus.NOT_FOUND, ex.getMessage());
+    }
+
+    @ExceptionHandler(InvalidStatusTransitionException.class)
+    public ResponseEntity<Object> handleInvalidStatusTransition(InvalidStatusTransitionException ex) {
+        return buildResponse(HttpStatus.CONFLICT, ex.getMessage());
+    }
+
+    // ===== Validation =====
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Object> handleValidation(MethodArgumentNotValidException ex) {
         String message = ex.getBindingResult().getFieldErrors().stream()
