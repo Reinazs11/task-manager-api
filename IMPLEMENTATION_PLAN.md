@@ -127,30 +127,35 @@ security has many moving parts and silent failures become vulnerabilities.
 
 ---
 
-## Step 5 — Tasks Infrastructure + API CRUD
+## Step 5 — Tasks Infrastructure + API CRUD ✅ DONE
 
-**Goal:** Persist projects and tasks, expose CRUD endpoints with pagination and filtering.
+**Goal:** Persist projects and tasks, expose CRUD endpoints with pagination,
+filtering, and owner-based authorization.
 
 **Implements:**
-- `ProjectEntity`, `TaskEntity` (JPA entities with relationships)
-- `ProjectJpaRepository`, `TaskJpaRepository`
-- Mappers (MapStruct) for Project and Task
-- Application services: `CreateProjectUseCase`, `CreateTaskUseCase`,
-  `ListTasksUseCase`, `UpdateTaskStatusUseCase`, etc.
-- Controllers:
-  - `POST /projects`, `GET /projects` (paginated), `GET/PUT/DELETE /projects/{id}`
-  - `POST /projects/{id}/tasks`, `GET /projects/{id}/tasks` (with filters:
-    `?status=DONE&page=0&size=10`)
-  - `GET/PUT/DELETE /tasks/{id}`
-- Pagination via Spring Data `Pageable`
-- Bean Validation on all request DTOs
+- `ProjectEntity`, `TaskEntity` (JPA with Lombok, owner_id denormalized on Task)
+- `ProjectJpaRepository`, `TaskJpaRepository` (Spring Data)
+- `ProjectRepositoryImpl`, `TaskRepositoryImpl` (adapters for domain ports + query ports)
+- `ProjectQueryPort`, `TaskQueryPort` (application ports with pagination types —
+  moved out of domain after ArchUnit caught the Spring Data leak)
+- 7 use cases: CreateProject, ListProjects, GetProject, DeleteProject,
+  CreateTask, ListTasks, UpdateTaskStatus (all enforce owner authorization)
+- `AuthenticatedUser` helper (extracts UserId from SecurityContext)
+- Controllers: ProjectController + TaskController (8 endpoints under /api/v1)
+- DTOs as records: CreateProjectRequest, CreateTaskRequest,
+  UpdateTaskStatusRequest, ProjectResponse, TaskResponse
+- GlobalExceptionHandler updated: 403, 404, 409 for new exceptions
 
 **Acceptance criteria:**
-- [ ] Full CRUD for projects and tasks
-- [ ] Pagination working on list endpoints
-- [ ] Filtering by status works
-- [ ] Users can only access their own projects/tasks (authorization)
-- [ ] Integration tests cover happy path + authorization failures
+- [x] Full CRUD for projects and tasks
+- [x] Pagination working on list endpoints
+- [x] Filtering by status works
+- [x] Users can only access their own projects/tasks (authorization)
+- [x] Status transitions enforced (409 for invalid transitions)
+- [x] Integration tests cover happy path + authorization failures
+- [x] ArchUnit caught and we fixed a real architecture violation (Spring Data
+      types in domain — moved to application query ports)
+- [x] 26 new tests (163 -> 189 total), all passing
 
 ---
 
@@ -214,9 +219,9 @@ security has many moving parts and silent failures become vulnerabilities.
 | 1. Bootstrap | ✅ DONE | `94954b9`, `6f2cf51`, `d09b795` |
 | 2. Users Domain | ✅ DONE | `c0d907c`, `7a647e9` |
 | 3. Users Infra + Auth | ✅ DONE | `6811fe1`, `d0c08f1`, `32525ba` |
-| 4. Tasks Domain | ✅ DONE | `955ca31` |
-| 5. Tasks Infra + API | ⬜ NEXT | — |
-| 6. Cross-cutting | ⬜ Pending | — |
+| 4. Tasks Domain | ✅ DONE | `955ca31`, `a4e6b6c` |
+| 5. Tasks Infra + API | ✅ DONE | `2be7414` |
+| 6. Cross-cutting | ⬜ NEXT | — |
 | 7. Polish and Release | ⬜ Pending | — |
 
 **Legend:** ✅ DONE · ⏳ NEXT/IN PROGRESS · ⬜ PENDING
