@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Logback configuration with profile-aware log levels.
+
+  Why a custom file and not application.yml 'logging.level.*'?
+  - The console pattern (including the MDC correlation id) can only be defined
+    declaratively here; the YAML DSL does not expose the conversion word %X.
+  - Profile-specific <springProfile> blocks let us ship sane defaults per
+    environment without runtime property plumbing.
+
+  Pattern legend:
+    %-5level         level, padded
+    %date{ISO8601}   timestamp
+    %thread          thread name (useful with pooled servlet threads)
+    %X{requestId}    MDC value set by CorrelationIdFilter (empty if absent)
+    %logger{36}      logger name, abbreviated to 36 chars
+    %msg             message
+-->
+<configuration>
+
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+
+    <property name="LOG_PATTERN"
+              value="%-5level [%date{ISO8601}] [%thread] [%X{requestId}] %logger{36} - %msg%n"/>
+
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>${LOG_PATTERN}</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Default / development profile: INFO, including SQL warnings. -->
+    <springProfile name="dev | default">
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+        <logger name="com.renan.taskmanager" level="DEBUG"/>
+        <logger name="org.springframework.web" level="INFO"/>
+    </springProfile>
+
+    <!-- Test profile: keep noise low so test output is readable. -->
+    <springProfile name="test">
+        <root level="WARN">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+        <logger name="com.renan.taskmanager" level="INFO"/>
+    </springProfile>
+
+    <!-- Production profile: INFO+, silence verbose framework loggers. -->
+    <springProfile name="prod">
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+        <logger name="org.hibernate.SQL" level="WARN"/>
+        <logger name="org.hibernate" level="WARN"/>
+        <logger name="org.springframework" level="WARN"/>
+        <logger name="org.apache" level="WARN"/>
+    </springProfile>
+
+</configuration>

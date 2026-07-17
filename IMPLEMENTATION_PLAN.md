@@ -163,23 +163,61 @@ filtering, and owner-based authorization.
 
 **Goal:** Production-readiness concerns that span the whole application.
 
-**Implements:**
-- `GlobalExceptionHandler` (`@RestControllerAdvice`) — standardized error JSON:
+**Implemented in three sub-steps:**
+
+### Step 6a — Standardized Error Handling (`059c2c8`)
+- `ErrorResponse` record types the six-field contract
   `{ timestamp, status, error, message, path, details }`
-- Custom exception → HTTP status mapping (404, 409, 400, 401, 403, 500)
-- OpenAPI documentation complete:
-  - `@Tag`, `@Operation`, `@ApiResponse` on all controllers
-  - API docs at `/v3/api-docs`, Swagger UI at `/swagger-ui.html`
-  - Security scheme documented (Bearer JWT)
-- Logging strategy: SLF4J structured logs at appropriate levels
-- Request/response logging for debugging (sanitized — no passwords/tokens)
-- API versioning decision: `/api/v1/...` prefix applied to all endpoints
+- `GlobalExceptionHandler` (`@RestControllerAdvice`) maps every exception to the
+  standard shape: domain exceptions (404/409/401/403), validation (400 with ALL
+  field errors in `details[]`), malformed body, type mismatch, missing param,
+  no-resource-found (404), 405, and a catch-all 500 that never leaks internals
+- `JsonAuthenticationEntryPoint` replaces the divergent inline Security lambda
+  so 401 from Spring Security and 401 from domain code produce identical bytes
+- `ErrorResponseContractTest` locks all six fields per status code (anti-cheat:
+  multi-error `details[]`, 500 anti-leak of stack/class names)
 
 **Acceptance criteria:**
-- [ ] All errors return the standardized JSON shape
-- [ ] Swagger UI fully documents every endpoint
-- [ ] Logs are useful for debugging without leaking secrets
-- [ ] API versioning consistent across all routes
+- [x] All errors return the standardized JSON shape
+- [x] 500 never leaks the stack / exception class / internal messages
+- [x] 401 from Security == 401 from domain (same six fields)
+
+### Step 6b — OpenAPI Documentation (`564376e`)
+- `OpenApiConfig` declares the `bearerAuth` HTTP/JWT security scheme
+- All controllers annotated with `@Tag`, `@Operation`, `@ApiResponses`;
+  protected routes carry `@SecurityRequirement("bearerAuth")`; request records
+  get `@Schema` examples
+- `application-prod.yml` disables `springdoc` entirely (docs do not leak in prod)
+  and sets `ddl-auto=validate`
+- `OpenApiDocumentationTest` locks the rendered `/v3/api-docs` contract
+  (metadata, security scheme, endpoint coverage); `OpenApiProdProfileTest`
+  verifies docs are offline under the `prod` profile
+
+**Acceptance criteria:**
+- [x] Swagger UI fully documents every endpoint
+- [x] Security scheme (Bearer JWT) is documented
+- [x] `prod` profile disables Swagger UI and api-docs
+
+### Step 6c — Observability & Logging (`d7fd17f`)
+- `CorrelationIdFilter` honors or mints `X-Request-Id`, stores it in the MDC
+  (`%X{requestId}`), echoes it in the response, and clears the MDC in `finally`
+  (thread-pool reuse protection)
+- `SanitizingRequestLoggingFilter` emits one structured INFO line per request
+  (method, URI, status, latency) and redacts `Authorization` / `Cookie` /
+  `Set-Cookie` at every log level; body logging gated behind TRACE + a
+  sensitive-key heuristic
+- `logback-spring.xml` wires the correlation id into the pattern and sets
+  levels per profile (dev / test / prod)
+- Tests use Logback `ListAppender` to capture real log output and assert
+  secrets are absent; integration test proves the id reaches both the response
+  header and the log event MDC through the full security chain
+
+**Acceptance criteria:**
+- [x] Logs are useful for debugging without leaking secrets
+- [x] Every request is traceable via a correlation id
+
+### API versioning
+- [x] `/api/v1/...` prefix applied to every route (already in place since Step 3)
 
 ---
 
@@ -221,7 +259,9 @@ filtering, and owner-based authorization.
 | 3. Users Infra + Auth | ✅ DONE | `6811fe1`, `d0c08f1`, `32525ba` |
 | 4. Tasks Domain | ✅ DONE | `955ca31`, `a4e6b6c` |
 | 5. Tasks Infra + API | ✅ DONE | `2be7414` |
-| 6. Cross-cutting | ⬜ NEXT | — |
-| 7. Polish and Release | ⬜ Pending | — |
+| 6a. Standardized Error Handling | ✅ DONE | `059c2c8` |
+| 6b. OpenAPI Documentation | ✅ DONE | `564376e` |
+| 6c. Observability & Logging | ✅ DONE | `d7fd17f` |
+| 7. Polish and Release | ⬜ NEXT | — |
 
 **Legend:** ✅ DONE · ⏳ NEXT/IN PROGRESS · ⬜ PENDING

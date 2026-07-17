@@ -1,5 +1,6 @@
 package com.renan.taskmanager.users.api;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -19,8 +20,15 @@ import jakarta.validation.constraints.Size;
  * @param password plain password (coarse length pre-check; full strength in domain)
  * @param name     optional display name
  */
+@Schema(name = "RegisterRequest", description = "Payload to create a new user account")
 public record RegisterRequest(
+        @Schema(description = "User email", example = "alice@example.com")
         @NotBlank @Email String email,
+
+        @Schema(description = "Plain password (min 8 chars; full strength rules enforced server-side)",
+                example = "Password123")
         @NotBlank @Size(min = 8) String password,
+
+        @Schema(description = "Optional display name", example = "Alice", nullable = true)
         String name
 ) {}

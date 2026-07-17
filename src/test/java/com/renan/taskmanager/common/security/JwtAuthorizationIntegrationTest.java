@@ -23,6 +23,7 @@ import java.util.Map;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
@@ -79,7 +80,16 @@ class JwtAuthorizationIntegrationTest {
         @DisplayName("Should return 401-403 when no token is provided")
         void shouldRejectWithoutToken() throws Exception {
             mockMvc.perform(get(SECURE_URL))
-                    .andExpect(status().isUnauthorized());
+                    .andExpect(status().isUnauthorized())
+                    // 401 must share the 6-field ErrorResponse shape produced by
+                    // GlobalExceptionHandler, so clients can rely on one contract.
+                    .andExpect(jsonPath("$.timestamp").isNotEmpty())
+                    .andExpect(jsonPath("$.status").value(401))
+                    .andExpect(jsonPath("$.error").value("Unauthorized"))
+                    .andExpect(jsonPath("$.message").value("Authentication is required"))
+                    .andExpect(jsonPath("$.path").value(SECURE_URL))
+                    .andExpect(jsonPath("$.details").isArray())
+                    .andExpect(jsonPath("$.details.length()").value(0));
         }
 
         @Test

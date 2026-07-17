@@ -27,6 +27,7 @@
         <jacoco.version>0.8.12</jacoco.version>
         <archunit.version>1.3.0</archunit.version>
         <pitest.version>1.16.1</pitest.version>
+        <pitest-junit5.version>1.2.1</pitest-junit5.version>
     </properties>
 
     <dependencies>
@@ -224,26 +225,52 @@
             <id>pit</id>
             <build>
                 <plugins>
-                    <plugin>
+            <plugin>
+                <groupId>org.pitest</groupId>
+                <artifactId>pitest-maven</artifactId>
+                <version>${pitest.version}</version>
+                <dependencies>
+                    <!-- Required: PIT does not discover JUnit 5 tests without this plugin -->
+                    <dependency>
                         <groupId>org.pitest</groupId>
-                        <artifactId>pitest-maven</artifactId>
-                        <version>${pitest.version}</version>
-                        <configuration>
-                            <targetClasses>
-                                <param>com.renan.taskmanager.*</param>
-                            </targetClasses>
-                            <targetTests>
-                                <param>com.renan.taskmanager.*</param>
-                            </targetTests>
-                            <outputFormats>
-                                <outputFormat>XML</outputFormat>
-                                <outputFormat>HTML</outputFormat>
-                            </outputFormats>
-                            <timestampedReports>false</timestampedReports>
-                            <jvmArgs>
-                                <jvmArg>-Xmx1024m</jvmArg>
-                            </jvmArgs>
-                        </configuration>
+                        <artifactId>pitest-junit5-plugin</artifactId>
+                        <version>${pitest-junit5.version}</version>
+                    </dependency>
+                </dependencies>
+                <configuration>
+                    <targetClasses>
+                        <param>com.renan.taskmanager.*</param>
+                    </targetClasses>
+                    <targetTests>
+                        <param>com.renan.taskmanager.*</param>
+                    </targetTests>
+                    <outputFormats>
+                        <outputFormat>XML</outputFormat>
+                        <outputFormat>HTML</outputFormat>
+                    </outputFormats>
+                    <timestampedReports>false</timestampedReports>
+                    <!--
+                      Default PIT timeout is ~8s, which is too tight for this
+                      project: integration tests boot Spring + a PostgreSQL
+                      Testcontainer (~8-12s each). Without the bump every
+                      mutation that touches a controller/handler path false-
+                      reports TIMED_OUT, polluting the report. 30s is the
+                      realistic ceiling for a single minion run.
+                    -->
+                    <timeoutConstant>30000</timeoutConstant>
+                    <jvmArgs>
+                        <jvmArg>-Xmx1024m</jvmArg>
+                    </jvmArgs>
+                    <!--
+                      PIT only needs a test that exercises the mutated code to
+                      kill a mutation. Running the whole suite for every
+                      mutation is O(mutations x tests) and dominated by Spring
+                      startups. Use a single fork to reuse warm JVM/classloader
+                      state across mutations; coverage history makes the next
+                      run incremental.
+                    -->
+                    <forks>1</forks>
+                </configuration>
                     </plugin>
                 </plugins>
             </build>

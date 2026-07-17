@@ -96,9 +96,21 @@ docs: update README with new endpoints
    project state.
 
 ## Pending design decisions (document here when decided)
-- [ ] Logging strategy (default SLF4J? Logback? Structured logging?)
+- [x] **Logging strategy: SLF4J + Logback native, no extra dependencies**
+  (decided in Step 6c). Rationale: professional-grade observability without
+  pulling in Logstash encoders or Micrometer for a portfolio project. Concrete
+  pieces: (1) `CorrelationIdFilter` puts an `X-Request-Id` in the MDC so every
+  log line carries it; (2) `SanitizingRequestLoggingFilter` emits one INFO line
+  per request and redacts `Authorization`/`Cookie` headers; (3)
+  `logback-spring.xml` sets profile-aware levels (dev/test/prod). Body logging
+  is gated behind TRACE + a sensitive-key heuristic and is off by default.
 - [x] **API versioning: `/api/v1/...` prefix on all endpoints** (decided: path-based)
-- [ ] Schema migration strategy (Flyway? Liquibase? ddl-auto=validate?)
+- [x] **OpenAPI in prod: disabled.** `application-prod.yml` sets
+  `springdoc.swagger-ui.enabled=false` and `springdoc.api-docs.enabled=false`.
+  Internal docs must not leak to production.
+- [ ] Schema migration strategy (Flyway? Liquibase? ddl-auto=validate?).
+  Note: `application-prod.yml` already uses `ddl-auto=validate`, so a migration
+  tool must own schema changes before Step 7 deploy.
 
 ## Modern stack — quick reference
 
