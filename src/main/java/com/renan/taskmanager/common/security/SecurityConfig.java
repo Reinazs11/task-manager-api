@@ -12,8 +12,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
-import jakarta.servlet.http.HttpServletResponse;
-
 /**
  * Spring Security configuration for stateless JWT authentication.
  *
@@ -35,9 +33,12 @@ import jakarta.servlet.http.HttpServletResponse;
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final JsonAuthenticationEntryPoint authenticationEntryPoint;
 
-    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter) {
+    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter,
+                          JsonAuthenticationEntryPoint authenticationEntryPoint) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+        this.authenticationEntryPoint = authenticationEntryPoint;
     }
 
     @Bean
@@ -48,17 +49,10 @@ public class SecurityConfig {
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 // CSRF off: no cookies/sessions to protect. Standard for stateless REST APIs.
                 .csrf(AbstractHttpConfigurer::disable)
-                // Return 401 (not 403) when no/invalid authentication is provided.
-                // Without this, Spring Security 6 defaults to Http403ForbiddenEntryPoint,
-                // which is semantically wrong for "unauthenticated".
+                // 401 responses go through JsonAuthenticationEntryPoint so they share the
+                // same six-field ErrorResponse shape produced by GlobalExceptionHandler.
                 .exceptionHandling(eh -> eh
-                        .authenticationEntryPoint((request, response, ex) -> {
-                            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                            response.setContentType("application/json");
-                            response.getWriter().write(
-                                    "{\"status\":401,\"error\":\"Unauthorized\","
-                                            + "\"message\":\"Authentication is required\"}");
-                        }))
+                        .authenticationEntryPoint(authenticationEntryPoint))
                 // Public vs protected routes
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/v1/auth/**").permitAll()
