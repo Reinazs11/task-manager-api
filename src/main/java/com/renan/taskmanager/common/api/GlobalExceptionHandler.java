@@ -16,7 +16,6 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
-import org.springframework.web.servlet.NoHandlerFoundException;
 
 import java.util.List;
 
@@ -106,16 +105,6 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * Missing required query parameter. Spring reports the parameter name; it is
-     * safe to expose (it's part of the public API contract, not a secret).
-     */
-    @ExceptionHandler(org.springframework.web.bind.MissingServletRequestParameterException.class)
-    public ResponseEntity<ErrorResponse> handleMissingParam(
-            org.springframework.web.bind.MissingServletRequestParameterException ex, WebRequest request) {
-        return buildResponse(HttpStatus.BAD_REQUEST, ex.getMessage(), List.of(), request);
-    }
-
-    /**
      * {@code /api/v1/projects/not-a-uuid} → 400, not 500. Type mismatches are
      * client mistakes, not server bugs.
      */
@@ -123,11 +112,6 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleTypeMismatch(MethodArgumentTypeMismatchException ex, WebRequest request) {
         String message = "Invalid value for parameter '" + ex.getName() + "'";
         return buildResponse(HttpStatus.BAD_REQUEST, message, List.of(), request);
-    }
-
-    @ExceptionHandler(NoHandlerFoundException.class)
-    public ResponseEntity<ErrorResponse> handleNoHandler(NoHandlerFoundException ex, WebRequest request) {
-        return buildResponse(HttpStatus.NOT_FOUND, "Resource not found", List.of(), request);
     }
 
     /**

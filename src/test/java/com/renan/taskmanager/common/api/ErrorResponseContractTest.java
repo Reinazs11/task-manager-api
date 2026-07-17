@@ -389,4 +389,122 @@ class ErrorResponseContractTest {
                     .doesNotContain("db password");
         }
     }
+
+    // ========================================================================
+    // 401 UNAUTHORIZED (domain: invalid login credentials)
+    // ========================================================================
+    // Exercises the InvalidCredentialsException handler (distinct from the
+    // Spring Security entry point tested in the Unauthorized group above).
+    @Nested
+    @DisplayName("401 UNAUTHORIZED contract (domain: invalid credentials)")
+    class InvalidCredentials {
+
+        @Test
+        @DisplayName("Login with wrong password returns the 6-field error shape from the domain handler")
+        void invalidLogin() throws Exception {
+            registerAndLogin("alice@example.com");
+            String uri = "/api/v1/auth/login";
+
+            Map<String, Object> body = Map.of("email", "alice@example.com", "password", "WrongPassword1");
+
+            mockMvc.perform(post(uri)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(body)))
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.timestamp").isNotEmpty())
+                    .andExpect(jsonPath("$.status").value(401))
+                    .andExpect(jsonPath("$.error").value("Unauthorized"))
+                    .andExpect(jsonPath("$.message").isNotEmpty())
+                    .andExpect(jsonPath("$.path").value(uri))
+                    .andExpect(jsonPath("$.details").isArray())
+                    .andExpect(jsonPath("$.details.length()").value(0));
+        }
+    }
+
+    // ========================================================================
+    // 400 BAD_REQUEST (type mismatch: malformed path variable)
+    // ========================================================================
+    // Exercises MethodArgumentTypeMismatchException: a non-UUID where a UUID is
+    // expected. This is a very common client mistake, and the dedicated handler
+    // returns 400 instead of leaking a conversion stack trace as 500.
+    @Nested
+    @DisplayName("400 BAD_REQUEST contract (malformed UUID path variable)")
+    class TypeMismatch {
+
+        @Test
+        @DisplayName("Non-UUID id in path returns the 6-field error shape")
+        void nonUuidPathVariable() throws Exception {
+            String token = registerAndLogin("alice@example.com");
+            String uri = "/api/v1/projects/not-a-uuid";
+
+            mockMvc.perform(get(uri).header("Authorization", "Bearer " + token))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.timestamp").isNotEmpty())
+                    .andExpect(jsonPath("$.status").value(400))
+                    .andExpect(jsonPath("$.error").value("Bad Request"))
+                    .andExpect(jsonPath("$.message").value("Invalid value for parameter 'id'"))
+                    .andExpect(jsonPath("$.path").value(uri))
+                    .andExpect(jsonPath("$.details").isArray())
+                    .andExpect(jsonPath("$.details.length()").value(0));
+        }
+    }
+
+    // ========================================================================
+    // 404 NOT_FOUND (task lookup miss)
+    // ========================================================================
+    // Exercises TaskNotFoundException directly via the tasks PATCH endpoint,
+    // rather than only via the invalid-transition path.
+    @Nested
+    @DisplayName("404 NOT_FOUND contract (task lookup miss)")
+    class TaskNotFound {
+
+        @Test
+        @DisplayName("PATCH status on a non-existent task returns the 6-field error shape")
+        void taskNotFound() throws Exception {
+            String token = registerAndLogin("alice@example.com");
+            String uri = "/api/v1/tasks/" + UUID.randomUUID() + "/status";
+
+            Map<String, Object> body = Map.of("status", "IN_PROGRESS");
+
+            mockMvc.perform(patch(uri)
+                            .header("Authorization", "Bearer " + token)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(body)))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.timestamp").isNotEmpty())
+                    .andExpect(jsonPath("$.status").value(404))
+                    .andExpect(jsonPath("$.error").value("Not Found"))
+                    .andExpect(jsonPath("$.message").isNotEmpty())
+                    .andExpect(jsonPath("$.path").value(uri))
+                    .andExpect(jsonPath("$.details").isArray())
+                    .andExpect(jsonPath("$.details.length()").value(0));
+        }
+    }
+
+    // ========================================================================
+    // 404 NOT_FOUND (no such route at all)
+    // ========================================================================
+    // Exercises NoResourceFoundException: a path that matches no controller.
+    // Without the dedicated handler this falls through to the 500 catch-all.
+    @Nested
+    @DisplayName("404 NOT_FOUND contract (unknown route)")
+    class UnknownRoute {
+
+        @Test
+        @DisplayName("Request to a non-existent path returns the 6-field error shape")
+        void unknownRoute() throws Exception {
+            String token = registerAndLogin("alice@example.com");
+            String uri = "/api/v1/projects/" + UUID.randomUUID() + "/does-not-exist";
+
+            mockMvc.perform(get(uri).header("Authorization", "Bearer " + token))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.timestamp").isNotEmpty())
+                    .andExpect(jsonPath("$.status").value(404))
+                    .andExpect(jsonPath("$.error").value("Not Found"))
+                    .andExpect(jsonPath("$.message").value("Resource not found"))
+                    .andExpect(jsonPath("$.path").value(uri))
+                    .andExpect(jsonPath("$.details").isArray())
+                    .andExpect(jsonPath("$.details.length()").value(0));
+        }
+    }
 }
