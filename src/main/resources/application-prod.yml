@@ -1,0 +1,30 @@
+# Production profile overrides.
+#
+# Activated with SPRING_PROFILES_ACTIVE=prod. The default profile (dev) is
+# optimized for local development; this file tightens the knobs that matter in
+# production:
+#   - Swagger UI and api-docs are DISABLED (internal docs must not leak).
+#   - Hibernate never mutates the schema (validate-only): Flyway/Liquibase own
+#     migrations in prod. ddl-auto=update in dev is a development convenience.
+#   - SQL formatting is off (noise reduction); SQL logs are WARN.
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        format_sql: false
+
+springdoc:
+  swagger-ui:
+    enabled: false
+  api-docs:
+    enabled: false
+
+logging:
+  level:
+    com.renan.taskmanager: INFO
+    org.hibernate.SQL: WARN
+    org.hibernate: WARN
+    org.springframework: WARN
+    org.apache: WARN

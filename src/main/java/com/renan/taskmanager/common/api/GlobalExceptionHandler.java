@@ -131,6 +131,18 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * Spring 6 raises this when no controller matches AND there is no static
+     * resource either (e.g. a disabled springdoc endpoint, or a totally unknown
+     * path). Mapping it to 404 — instead of letting it fall through to the 500
+     * catch-all — keeps the contract intact for the "not found" class of errors.
+     */
+    @ExceptionHandler(org.springframework.web.servlet.resource.NoResourceFoundException.class)
+    public ResponseEntity<ErrorResponse> handleNoResourceFound(
+            org.springframework.web.servlet.resource.NoResourceFoundException ex, WebRequest request) {
+        return buildResponse(HttpStatus.NOT_FOUND, "Resource not found", List.of(), request);
+    }
+
+    /**
      * Wrong HTTP verb on a known path (e.g. {@code PUT /api/v1/projects} when only
      * GET/POST are mapped). Surfaced with a stable message instead of Spring's
      * default error JSON, so the contract holds for every 4xx/5xx.

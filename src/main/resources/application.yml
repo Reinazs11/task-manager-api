@@ -34,8 +34,10 @@ server:
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
+    operations-sorter: method   # Group endpoints by HTTP verb in the UI
   api-docs:
     path: /v3/api-docs
+  default-produces-media-type: application/json
 
 # Configuração JWT (valores sensíveis vêm de variáveis de ambiente em prod)
 app:
@@ -43,6 +45,8 @@ app:
     secret: ${JWT_SECRET:dGhpcy1pcy1hLWRldmVsb3BtZW50LWp3dC1zZWNyZXQta2V5LWRvLW5vdC11c2UtaW4tcHJvZHVjdGlvbi1wbGVhc2U=}
     access-token-expiration-ms: 900000      # 15 minutos
     refresh-token-expiration-ms: 604800000  # 7 dias
+  api:
+    version: ${APP_VERSION:0.1.0}
 
 logging:
   level:
