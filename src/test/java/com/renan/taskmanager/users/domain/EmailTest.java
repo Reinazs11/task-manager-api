@@ -111,5 +111,26 @@ class EmailTest {
             Email b = new Email("b@example.com");
             assertThat(a).isNotEqualTo(b);
         }
+
+        @Test
+        @DisplayName("Should be equal to itself (reflexive)")
+        void shouldBeEqualToItself() {
+            Email email = new Email("renan@example.com");
+            assertThat(email).isEqualTo(email);
+        }
+
+        @Test
+        @DisplayName("Should not be equal to null")
+        void shouldNotBeEqualToNull() {
+            Email email = new Email("renan@example.com");
+            assertThat(email).isNotEqualTo(null);
+        }
+
+        @Test
+        @DisplayName("Should not be equal to a different type")
+        void shouldNotBeEqualToDifferentType() {
+            Email email = new Email("renan@example.com");
+            assertThat(email).isNotEqualTo("renan@example.com");
+        }
     }
 }

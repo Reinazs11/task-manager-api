@@ -1,6 +1,7 @@
 package com.renan.taskmanager.tasks.domain;
 
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.util.UUID;
@@ -35,20 +36,62 @@ class ProjectIdTest {
     }
 
     @Test
-    @DisplayName("Should be equal when wrapping the same UUID")
-    void shouldBeEqualWithSameUUID() {
-        UUID uuid = UUID.randomUUID();
-        ProjectId a = ProjectId.of(uuid);
-        ProjectId b = ProjectId.of(uuid);
-
-        assertThat(a).isEqualTo(b).hasSameHashCodeAs(b);
-    }
-
-    @Test
     @DisplayName("Should reject null UUID in of()")
     void shouldRejectNullUUID() {
         assertThatThrownBy(() -> ProjectId.of(null))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessageContaining("ProjectId");
+    }
+
+    /**
+     * Full equality contract covering every branch of {@code equals} so that
+     * mutation testing cannot silently erode value-object semantics.
+     */
+    @Nested
+    @DisplayName("Equality contract")
+    class Equality {
+
+        @Test
+        @DisplayName("Should be equal when wrapping the same UUID")
+        void shouldBeEqualWithSameUUID() {
+            UUID uuid = UUID.randomUUID();
+            ProjectId a = ProjectId.of(uuid);
+            ProjectId b = ProjectId.of(uuid);
+
+            assertThat(a).isEqualTo(b).hasSameHashCodeAs(b);
+        }
+
+        @Test
+        @DisplayName("Should be equal to itself (reflexive)")
+        void shouldBeEqualToItself() {
+            ProjectId id = ProjectId.generate();
+
+            assertThat(id).isEqualTo(id);
+        }
+
+        @Test
+        @DisplayName("Should not be equal to null")
+        void shouldNotBeEqualToNull() {
+            ProjectId id = ProjectId.generate();
+
+            assertThat(id).isNotEqualTo(null);
+        }
+
+        @Test
+        @DisplayName("Should not be equal to a different type")
+        void shouldNotBeEqualToDifferentType() {
+            ProjectId id = ProjectId.generate();
+
+            assertThat(id).isNotEqualTo("not-a-projectid");
+        }
+
+        @Test
+        @DisplayName("Should not be equal to a ProjectId with a different UUID")
+        void shouldNotBeEqualToDifferentUUID() {
+            ProjectId a = ProjectId.generate();
+            ProjectId b = ProjectId.generate();
+
+            assertThat(a).isNotEqualTo(b);
+        }
     }
 }

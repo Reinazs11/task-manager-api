@@ -86,6 +86,27 @@ class PasswordTest {
         }
 
         @Test
+        @DisplayName("Should accept a password with EXACTLY 8 characters (boundary)")
+        void shouldAcceptExactBoundaryLength() {
+            // 8 chars, 1 upper, 1 lower, 1 digit — the minimum that passes.
+            // This kills the PIT "changed conditional boundary" mutation on
+            // validate() (i.e. catches a future regression turning < into <=).
+            Password password = new Password("Abcdefg1");
+
+            assertThat(password.value()).isEqualTo("Abcdefg1");
+        }
+
+        @Test
+        @DisplayName("Should reject a password with 7 characters (just below boundary)")
+        void shouldRejectJustBelowBoundary() {
+            // 7 chars: one below the minimum. Distinct from the short-password
+            // case above so the boundary is covered from both sides.
+            assertThatThrownBy(() -> new Password("Abcdef1"))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("8");
+        }
+
+        @Test
         @DisplayName("Should reject a password without an uppercase letter")
         void shouldRejectPasswordWithoutUppercase() {
             assertThatThrownBy(() -> new Password("password123"))
@@ -114,6 +135,53 @@ class PasswordTest {
         void shouldRejectNull() {
             assertThatThrownBy(() -> new Password(null))
                     .isInstanceOf(IllegalArgumentException.class);
+        }
+    }
+
+    @Nested
+    @DisplayName("Equality (value object semantics)")
+    class Equality {
+
+        @Test
+        @DisplayName("Two passwords with the same value should be equal")
+        void shouldBeEqual() {
+            Password a = new Password("Password123");
+            Password b = new Password("Password123");
+
+            assertThat(a).isEqualTo(b).hasSameHashCodeAs(b);
+        }
+
+        @Test
+        @DisplayName("Should be equal to itself (reflexive)")
+        void shouldBeEqualToItself() {
+            Password password = new Password("Password123");
+
+            assertThat(password).isEqualTo(password);
+        }
+
+        @Test
+        @DisplayName("Should not be equal to null")
+        void shouldNotBeEqualToNull() {
+            Password password = new Password("Password123");
+
+            assertThat(password).isNotEqualTo(null);
+        }
+
+        @Test
+        @DisplayName("Should not be equal to a different type")
+        void shouldNotBeEqualToDifferentType() {
+            Password password = new Password("Password123");
+
+            assertThat(password).isNotEqualTo("Password123");
+        }
+
+        @Test
+        @DisplayName("Should not be equal to a different password")
+        void shouldNotBeEqualToDifferentPassword() {
+            Password a = new Password("Password123");
+            Password b = new Password("DifferentPass1");
+
+            assertThat(a).isNotEqualTo(b);
         }
     }
 }

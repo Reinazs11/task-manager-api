@@ -1,6 +1,7 @@
 package com.renan.taskmanager.users.domain;
 
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.util.UUID;
@@ -36,13 +37,56 @@ class UserIdTest {
         assertThat(id.value()).isEqualTo(uuid);
     }
 
-    @Test
-    @DisplayName("Should be equal when they share the same UUID")
-    void shouldBeEqualWithSameUUID() {
-        UUID uuid = UUID.randomUUID();
-        UserId a = UserId.of(uuid);
-        UserId b = UserId.of(uuid);
+    /**
+     * Equality semantics: a value object must be interchangeable with another
+     * holding the same value. Covers all branches of {@code equals} so a
+     * regression in any of them is caught (PIT mutation testing).
+     */
+    @Nested
+    @DisplayName("Equality contract")
+    class Equality {
 
-        assertThat(a).isEqualTo(b).hasSameHashCodeAs(b);
+        @Test
+        @DisplayName("Should be equal when they share the same UUID")
+        void shouldBeEqualWithSameUUID() {
+            UUID uuid = UUID.randomUUID();
+            UserId a = UserId.of(uuid);
+            UserId b = UserId.of(uuid);
+
+            assertThat(a).isEqualTo(b).hasSameHashCodeAs(b);
+        }
+
+        @Test
+        @DisplayName("Should be equal to itself (reflexive)")
+        void shouldBeEqualToItself() {
+            UserId id = UserId.generate();
+
+            assertThat(id).isEqualTo(id);
+        }
+
+        @Test
+        @DisplayName("Should not be equal to null")
+        void shouldNotBeEqualToNull() {
+            UserId id = UserId.generate();
+
+            assertThat(id).isNotEqualTo(null);
+        }
+
+        @Test
+        @DisplayName("Should not be equal to a different type")
+        void shouldNotBeEqualToDifferentType() {
+            UserId id = UserId.generate();
+
+            assertThat(id).isNotEqualTo("not-a-userid");
+        }
+
+        @Test
+        @DisplayName("Should not be equal to a UserId with a different UUID")
+        void shouldNotBeEqualToDifferentUUID() {
+            UserId a = UserId.generate();
+            UserId b = UserId.generate();
+
+            assertThat(a).isNotEqualTo(b);
+        }
     }
 }
