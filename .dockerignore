@@ -1,0 +1,36 @@
+# Version control and IDE — never relevant to the build.
+.git
+.gitignore
+.github
+.idea
+.vscode
+*.iml
+
+# Build output (the image rebuilds from source).
+target
+**/target
+build
+**/build
+.mvn
+mvnw
+mvnw.cmd
+
+# Local runtime artifacts that should never be baked into an image.
+.env
+pgdata
+*.log
+logs
+
+# Documentation and project metadata — not needed at runtime.
+README.md
+AGENTS.md
+IMPLEMENTATION_PLAN.md
+LICENSE
+.dockerignore
+Dockerfile
+docker-compose.yml
+.zcode
+
+# OS junk.
+.DS_Store
+Thumbs.db

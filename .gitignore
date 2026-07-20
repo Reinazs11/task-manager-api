@@ -43,3 +43,9 @@ pgdata/
 
 # JaCoCo / relatórios
 jacoco.exec
+jacoco-merged.exec
+jacoco-it.exec
+target-site/
+
+# Agent working directory (CLI-specific, not part of the project)
+.zcode/
