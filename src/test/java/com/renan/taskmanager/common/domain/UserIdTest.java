@@ -1,4 +1,4 @@
-package com.renan.taskmanager.users.domain;
+package com.renan.taskmanager.common.domain;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;

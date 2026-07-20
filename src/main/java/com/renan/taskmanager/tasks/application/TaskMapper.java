@@ -3,7 +3,7 @@ package com.renan.taskmanager.tasks.application;
 import com.renan.taskmanager.tasks.domain.*;
 import com.renan.taskmanager.tasks.infrastructure.ProjectEntity;
 import com.renan.taskmanager.tasks.infrastructure.TaskEntity;
-import com.renan.taskmanager.users.domain.UserId;
+import com.renan.taskmanager.common.domain.UserId;
 import org.mapstruct.Mapper;
 
 import java.util.List;

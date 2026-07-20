@@ -3,7 +3,7 @@ package com.renan.taskmanager.tasks.application;
 import com.renan.taskmanager.tasks.domain.*;
 import com.renan.taskmanager.tasks.domain.Project;
 import com.renan.taskmanager.tasks.domain.Task;
-import com.renan.taskmanager.users.domain.UserId;
+import com.renan.taskmanager.common.domain.UserId;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
