@@ -107,10 +107,25 @@ class JwtServiceTest {
         void shouldRejectTamperedToken() {
             String token = jwtService.generateAccessToken(UUID.randomUUID(), "x@example.com");
 
-            // Flip the last character of the signature part
-            char last = token.charAt(token.length() - 1);
-            char replacement = last == 'A' ? 'B' : 'A';
-            String tampered = token.substring(0, token.length() - 1) + replacement;
+            // Tamper with the PAYLOAD, not the signature.
+            // A JWT is "header.payload.signature" and the signature covers the
+            // first two segments. Flipping a char in the payload therefore
+            // changes what was signed, so the signature no longer matches.
+            //
+            // <b>Why not flip a char in the signature?</b> The signature is
+            // Base64URL-encoded: each char is 6 bits. HS256 produces 32 bytes,
+            // which encodes to 43 chars (258 bits) — the last char holds 2
+            // padding bits that jjwt ignores on decode. Flipping only the last
+            // char can change JUST those padding bits, leaving the decoded
+            // signature bytes unchanged and making the token still validate.
+            // That produces a flaky test that passes or fails depending on the
+            // randomly generated jti. Tampering with the payload is the
+            // deterministic way to force a signature mismatch.
+            String[] parts = token.split("\\.");
+            char lastPayload = parts[1].charAt(parts[1].length() - 1);
+            char replacement = lastPayload == 'A' ? 'B' : 'A';
+            parts[1] = parts[1].substring(0, parts[1].length() - 1) + replacement;
+            String tampered = parts[0] + "." + parts[1] + "." + parts[2];
 
             assertThatThrownBy(() -> jwtService.parseAndValidate(tampered))
                     .isInstanceOf(JwtException.class);
