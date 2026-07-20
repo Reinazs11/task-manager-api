@@ -181,9 +181,33 @@
                             <goal>prepare-agent</goal>
                         </goals>
                     </execution>
+                    <!--
+                      Second prepare-agent for Failsafe: integration tests run in
+                      their own JVM goal (integration-test) and would otherwise
+                      not pick up the JaCoCo agent. Produces a separate exec file
+                      that the report merges with the unit-test one.
+                    -->
+                    <execution>
+                        <id>prepare-agent-integration</id>
+                        <goals>
+                            <goal>prepare-agent-integration</goal>
+                        </goals>
+                    </execution>
                     <execution>
                         <id>report</id>
                         <phase>test</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                    <!--
+                      Merge unit + integration exec files into one report at the
+                      end of the integration-test phase, so the coverage check
+                      reflects BOTH suites.
+                    -->
+                    <execution>
+                        <id>report-integration</id>
+                        <phase>post-integration-test</phase>
                         <goals>
                             <goal>report</goal>
                         </goals>
@@ -210,6 +234,60 @@
                     </execution>
                 </executions>
             </plugin>
+
+            <!--
+              Surefire: runs UNIT tests only (goal: test). Anything matching
+              *IT (Failsafe convention) is excluded so it can't accidentally run
+              here and slow down the fast feedback loop.
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <excludes>
+                        <exclude>**/*IT.java</exclude>
+                        <exclude>**/*ITCase.java</exclude>
+                    </excludes>
+                </configuration>
+            </plugin>
+
+            <!--
+              Failsafe: runs INTEGRATION tests only (goal: integration-test,
+              bound to the verify lifecycle). By convention only *IT / *ITCase
+              classes match. Integration tests boot Spring + Testcontainers, so
+              they are slower and belong in a separate phase from unit tests.
+
+              <b>Why forkCount=1 and reuseForks=true?</b>
+              Integration tests spin up a real PostgreSQL container and a Spring
+              context. Running them in parallel forks causes two problems:
+              connection starvation on the container (every fork wants a pool)
+              and race conditions when two forks reuse the same container at
+              once, surfacing as `CannotCreateTransactionException` after the
+              30s JPA timeout. A single fork that runs classes sequentially is
+              the stable configuration — each class gets the container to itself
+              for the duration of its tests. Spring's TestContext cache then
+              reuses the warm context across classes that share the same
+              configuration, which is where the real speedup comes from.
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <configuration>
+                    <forkCount>1</forkCount>
+                    <reuseForks>true</reuseForks>
+                    <parallel>none</parallel>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>integration-test</goal>
+                            <goal>verify</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+
         </plugins>
     </build>
 
