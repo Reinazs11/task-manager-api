@@ -23,18 +23,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * loudly if anyone removes the {@code springdoc.*.enabled=false} override from
  * {@code application-prod.yml}.</p>
  *
- * <p><b>Why override {@code @SpringBootTest(properties = ...)} here (instead of
- * inheriting the base class unchanged)?</b> The {@code prod} profile sets
- * {@code ddl-auto=validate}, which would fail on the empty container because no
- * migration has run yet (Flyway integration comes in Step 7b). We restate the
- * annotations with the prod profile and a one-off {@code ddl-auto=update} so the
- * context boots; this does NOT weaken what we are verifying — that springdoc is
- * disabled in prod. The ddl strategy is orthogonal to the docs leak we test.</p>
+ * <p><b>Why only override the profile (and not ddl-auto)?</b> The prod profile
+ * sets {@code ddl-auto=validate}, which would have failed on the empty container
+ * before Flyway existed. Now Flyway applies {@code V1__init_schema.sql} on
+ * startup, so Hibernate validates successfully — no override needed.</p>
  */
-@SpringBootTest(properties = {
-        "spring.profiles.active=prod",
-        "spring.jpa.hibernate.ddl-auto=update"
-})
+@SpringBootTest(properties = "spring.profiles.active=prod")
 class OpenApiProdProfileIT extends AbstractIntegrationTest {
 
     @Test

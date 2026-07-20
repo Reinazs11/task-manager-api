@@ -56,6 +56,25 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!--
+          Flyway: owns schema migrations. Spring Boot auto-configures it when
+          flyway-core is on the classpath, runs migrations on startup BEFORE
+          Hibernate validates, and writes a checkpoint to flyway_schema_history.
+          V1__init_schema.sql captures the schema the JPA entities expect.
+
+          Since Flyway 10 the per-database support ships as separate modules —
+          PostgreSQL needs flyway-database-postgresql alongside flyway-core,
+          otherwise startup fails with "Unsupported Database: PostgreSQL 16.x".
+        -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-database-postgresql</artifactId>
+        </dependency>
+
         <!-- JWT (access + refresh tokens) -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
