@@ -188,7 +188,22 @@
                 </configuration>
             </plugin>
 
-            <!-- JaCoCo: cobertura mínima de 80% (build falha abaixo) -->
+            <!--
+              JaCoCo: coverage gate at 80% (build fails below).
+
+              Two agents are prepared:
+                - prepare-agent          → unit tests (Surefire, 'test' phase)
+                - prepare-agent-integration → integration tests (Failsafe,
+                                              'integration-test' phase)
+              They write to DIFFERENT exec files (jacoco.exec and
+              jacoco-it.exec) — a single file would be overwritten by whichever
+              JVM ran last.
+
+              The merge execution combines them into one before the report and
+              check run, so the gate reflects BOTH suites. All three (merge,
+              report, check) are bound to 'verify' so they execute after every
+              test phase has finished.
+            -->
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
@@ -200,12 +215,6 @@
                             <goal>prepare-agent</goal>
                         </goals>
                     </execution>
-                    <!--
-                      Second prepare-agent for Failsafe: integration tests run in
-                      their own JVM goal (integration-test) and would otherwise
-                      not pick up the JaCoCo agent. Produces a separate exec file
-                      that the report merges with the unit-test one.
-                    -->
                     <execution>
                         <id>prepare-agent-integration</id>
                         <goals>
@@ -213,30 +222,42 @@
                         </goals>
                     </execution>
                     <execution>
-                        <id>report</id>
-                        <phase>test</phase>
+                        <id>merge</id>
+                        <phase>verify</phase>
                         <goals>
-                            <goal>report</goal>
+                            <goal>merge</goal>
                         </goals>
+                        <configuration>
+                            <fileSets>
+                                <fileSet>
+                                    <directory>${project.build.directory}</directory>
+                                    <includes>
+                                        <include>jacoco.exec</include>
+                                        <include>jacoco-it.exec</include>
+                                    </includes>
+                                </fileSet>
+                            </fileSets>
+                            <destFile>${project.build.directory}/jacoco-merged.exec</destFile>
+                        </configuration>
                     </execution>
-                    <!--
-                      Merge unit + integration exec files into one report at the
-                      end of the integration-test phase, so the coverage check
-                      reflects BOTH suites.
-                    -->
                     <execution>
-                        <id>report-integration</id>
-                        <phase>post-integration-test</phase>
+                        <id>report</id>
+                        <phase>verify</phase>
                         <goals>
                             <goal>report</goal>
                         </goals>
+                        <configuration>
+                            <dataFile>${project.build.directory}/jacoco-merged.exec</dataFile>
+                        </configuration>
                     </execution>
                     <execution>
                         <id>check</id>
+                        <phase>verify</phase>
                         <goals>
                             <goal>check</goal>
                         </goals>
                         <configuration>
+                            <dataFile>${project.build.directory}/jacoco-merged.exec</dataFile>
                             <rules>
                                 <rule>
                                     <element>BUNDLE</element>
