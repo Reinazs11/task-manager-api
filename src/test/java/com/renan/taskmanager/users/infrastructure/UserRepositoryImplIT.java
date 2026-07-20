@@ -1,5 +1,6 @@
 package com.renan.taskmanager.users.infrastructure;
 
+import com.renan.taskmanager.common.TestContainersConfig;
 import com.renan.taskmanager.users.application.UserMapperImpl;
 import com.renan.taskmanager.users.domain.Email;
 import com.renan.taskmanager.users.domain.Password;
@@ -10,11 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Import;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.util.Optional;
 
@@ -35,27 +32,19 @@ import static org.assertj.core.api.Assertions.assertThat;
  * repositories), not the whole application context. It's faster and more
  * focused. We override the default embedded DB with our Testcontainers
  * PostgreSQL via {@link AutoConfigureTestDatabase}.</p>
+ *
+ * <p><b>Why {@code @Import(TestContainersConfig.class)} (and not a static
+ * {@code @Container} field)?</b>
+ * Same rationale as {@link com.renan.taskmanager.common.AbstractIntegrationTest}:
+ * the container's lifecycle is bound to Spring's, which avoids
+ * connection-refused races when the TestContext is reused. Even though this
+ * class runs alone in its own slice context, sharing the same config keeps the
+ * project consistent and lets a future class reuse this context.</p>
  */
 @DataJpaTest
-@Testcontainers
-@Import({UserRepositoryImpl.class, UserMapperImpl.class})
+@Import({UserRepositoryImpl.class, UserMapperImpl.class, TestContainersConfig.class})
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-class UserRepositoryImplTest {
-
-    /**
-     * PostgreSQL container shared across all tests in this class.
-     * Testcontainers starts it once, reuses for all tests, tears down at the end.
-     *
-     * <p><b>@ServiceConnection</b> (Spring Boot 3.1+): auto-wires the container's
-     * JDBC URL/credentials into the application context, replacing the manual
-     * {@code @DynamicPropertySource} boilerplate. Modern and cleaner.</p>
-     */
-    @Container
-    @ServiceConnection
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine")
-            .withDatabaseName("taskmanager_test")
-            .withUsername("test")
-            .withPassword("test");
+class UserRepositoryImplIT {
 
     @Autowired
     private UserRepository userRepository;

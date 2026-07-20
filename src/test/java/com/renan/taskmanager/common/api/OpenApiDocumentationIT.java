@@ -1,19 +1,11 @@
 package com.renan.taskmanager.common.api;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.renan.taskmanager.common.AbstractIntegrationTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
-import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -38,23 +30,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * boot the whole app against a real PostgreSQL, exactly like the other
  * integration tests.</p>
  */
-@SpringBootTest
-@AutoConfigureMockMvc
-@Testcontainers
-class OpenApiDocumentationTest {
-
-    @Container
-    @ServiceConnection
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine")
-            .withDatabaseName("taskmanager_test")
-            .withUsername("test")
-            .withPassword("test");
-
-    @Autowired
-    private MockMvc mockMvc;
-
-    @Autowired
-    private ObjectMapper objectMapper;
+class OpenApiDocumentationIT extends AbstractIntegrationTest {
 
     // ========================================================================
     // OpenAPI metadata

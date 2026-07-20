@@ -1,6 +1,6 @@
 package com.renan.taskmanager.users.api;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.renan.taskmanager.common.AbstractIntegrationTest;
 import com.renan.taskmanager.common.security.JwtService;
 import com.renan.taskmanager.users.domain.Email;
 import com.renan.taskmanager.users.domain.UserRepository;
@@ -9,15 +9,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.util.Map;
 
@@ -39,23 +32,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * The flow hits the database. We use real PostgreSQL so we catch dialect-
  * specific bugs (UUID columns, unique constraints) that H2 would hide.</p>
  */
-@SpringBootTest
-@AutoConfigureMockMvc
-@Testcontainers
-class AuthControllerIntegrationTest {
-
-    @Container
-    @ServiceConnection
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine")
-            .withDatabaseName("taskmanager_test")
-            .withUsername("test")
-            .withPassword("test");
-
-    @Autowired
-    private MockMvc mockMvc;
-
-    @Autowired
-    private ObjectMapper objectMapper;
+class AuthControllerIT extends AbstractIntegrationTest {
 
     @Autowired
     private UserRepository userRepository;

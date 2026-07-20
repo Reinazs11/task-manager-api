@@ -1,22 +1,14 @@
 package com.renan.taskmanager.common.security;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.renan.taskmanager.users.api.LoginRequest;
-import com.renan.taskmanager.users.api.RegisterRequest;
+import com.renan.taskmanager.common.AbstractIntegrationTest;
+import com.renan.taskmanager.users.domain.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.util.Map;
 
@@ -30,7 +22,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * Authorization integration tests: verify that the JWT security infrastructure
  * actually enforces authentication on protected endpoints.
  *
- * <p>This complements {@code AuthControllerIntegrationTest} (which covers the
+ * <p>This complements {@code AuthControllerIT} (which covers the
  * auth flows themselves) by testing the OTHER side: what happens when a
  * protected resource is accessed with various token states.</p>
  *
@@ -39,33 +31,17 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * {@link SecurityConfig} (e.g. a misconfigured route, a swallowed exception)
  * could go unnoticed until production. Security tests are first-class.</p>
  */
-@SpringBootTest
-@AutoConfigureMockMvc
-@Testcontainers
-class JwtAuthorizationIntegrationTest {
-
-    @Container
-    @ServiceConnection
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine")
-            .withDatabaseName("taskmanager_test")
-            .withUsername("test")
-            .withPassword("test");
+class JwtAuthorizationIT extends AbstractIntegrationTest {
 
     private static final String SECURE_URL = "/api/v1/test/secure";
     private static final String VALID_EMAIL = "auth-test@example.com";
     private static final String VALID_PASSWORD = "Password123";
 
     @Autowired
-    private MockMvc mockMvc;
-
-    @Autowired
-    private ObjectMapper objectMapper;
-
-    @Autowired
     private JwtService jwtService;
 
     @Autowired
-    private com.renan.taskmanager.users.domain.UserRepository userRepository;
+    private UserRepository userRepository;
 
     @BeforeEach
     void cleanDatabase() {
@@ -130,10 +106,25 @@ class JwtAuthorizationIntegrationTest {
         @DisplayName("Should reject a tampered token")
         void shouldRejectTamperedToken() throws Exception {
             String accessToken = registerAndLogin();
-            // Flip the last character of the signature
-            char last = accessToken.charAt(accessToken.length() - 1);
-            char replacement = (last == 'A') ? 'B' : 'A';
-            String tampered = accessToken.substring(0, accessToken.length() - 1) + replacement;
+
+            // Tamper with the PAYLOAD, not the signature.
+            // A JWT is "header.payload.signature" and the signature covers the
+            // first two segments. Flipping a char in the payload therefore
+            // changes what was signed, so the signature no longer matches.
+            //
+            // <b>Why not flip a char in the signature?</b> The signature is
+            // Base64URL-encoded: each char is 6 bits. HS256 produces 32 bytes,
+            // which encodes to 43 chars (258 bits) — the last char holds 2
+            // padding bits that jjwt ignores on decode. Flipping only the last
+            // char can change JUST those padding bits, leaving the decoded
+            // signature bytes unchanged and making the token still validate
+            // (flaky). Tampering with the payload is the deterministic way to
+            // force a signature mismatch.
+            String[] parts = accessToken.split("\\.");
+            char lastPayload = parts[1].charAt(parts[1].length() - 1);
+            char replacement = (lastPayload == 'A') ? 'B' : 'A';
+            parts[1] = parts[1].substring(0, parts[1].length() - 1) + replacement;
+            String tampered = parts[0] + "." + parts[1] + "." + parts[2];
 
             mockMvc.perform(get(SECURE_URL)
                             .header("Authorization", "Bearer " + tampered))
