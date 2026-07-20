@@ -7,7 +7,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
-import static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.slices;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
@@ -138,6 +137,98 @@ class ArchitectureTest {
                     .that().resideInAPackage("..users..")
                     .should().dependOnClassesThat()
                     .resideInAPackage("..tasks.infrastructure..")
+                    .because("bounded contexts communicate via domain types only, not infra")
+                    .check(classes);
+        }
+
+        @Test
+        @DisplayName("Tasks context should not depend on any users layer (only common may be shared)")
+        void tasksShouldNotDependOnUsers() {
+            // The infra-only rule above is a subset of this: tasks may not reach
+            // into users at all, period. Cross-context collaboration goes
+            // through ..common.. (shared kernel) — never directly.
+            noClasses()
+                    .that().resideInAPackage("com.renan.taskmanager.tasks..")
+                    .should().dependOnClassesThat()
+                    .resideInAPackage("com.renan.taskmanager.users..")
+                    .because("bounded contexts communicate only through the common/shared kernel")
+                    .check(classes);
+        }
+
+        @Test
+        @DisplayName("Users context should not depend on any tasks layer (only common may be shared)")
+        void usersShouldNotDependOnTasks() {
+            noClasses()
+                    .that().resideInAPackage("com.renan.taskmanager.users..")
+                    .should().dependOnClassesThat()
+                    .resideInAPackage("com.renan.taskmanager.tasks..")
+                    .because("bounded contexts communicate only through the common/shared kernel")
+                    .check(classes);
+        }
+    }
+
+    @Nested
+    @DisplayName("Stereotype placement")
+    class StereotypePlacement {
+
+        @Test
+        @DisplayName("@RestController and @Controller may only live in the API layer")
+        void webStereotypesOnlyInApi() {
+            // A @RestController anywhere else (e.g. inside application or
+            // infrastructure) is an HTTP concern leaking out of the API layer.
+            classes()
+                    .that().areAnnotatedWith("org.springframework.stereotype.Controller")
+                    .or().areAnnotatedWith("org.springframework.web.bind.annotation.RestController")
+                    .should().resideInAPackage("..api..")
+                    .because("HTTP endpoints belong in the API layer; everything else is internal")
+                    .check(classes);
+        }
+
+        @Test
+        @DisplayName("@Service, @Repository, @Component, @Controller may not live in the domain layer")
+        void springStereotypesNotInDomain() {
+            // The domain layer is framework-agnostic by design (see
+            // DomainIsolation). This rule makes the intent explicit at the
+            // stereotype level: even if a Spring stereotype doesn't pull a real
+            // dependency yet, it signals intent that the class is Spring-managed
+            // — a smell in a pure domain.
+            noClasses()
+                    .that().resideInAPackage("..domain..")
+                    .should().beAnnotatedWith("org.springframework.stereotype.Service")
+                    .orShould().beAnnotatedWith("org.springframework.stereotype.Repository")
+                    .orShould().beAnnotatedWith("org.springframework.stereotype.Component")
+                    .orShould().beAnnotatedWith("org.springframework.stereotype.Controller")
+                    .because("the domain layer is framework-agnostic; Spring stereotypes are forbidden here")
+                    .check(classes);
+        }
+    }
+
+    @Nested
+    @DisplayName("Naming conventions in the domain layer")
+    class NamingConventions {
+
+        @Test
+        @DisplayName("Domain classes must not be named after outer-layer suffixes")
+        void domainClassNamesShouldNotUseLayerSuffixes() {
+            // A class named User*Service* in ..domain.. is a strong smell: the
+            // author is signaling application-layer intent in a domain file.
+            //
+            // Note: "Repository" is intentionally NOT in this list. In DDD,
+            // "Repository" is the canonical name for the persistence port
+            // interface that lives IN the domain layer — banishing it would
+            // force awkward renames (Port, Store, Gateway) and lose the shared
+            // vocabulary with the wider DDD literature. Only the
+            // framework-specific suffixes (Controller/Service/Config) are
+            // forbidden, since they signal Spring-layer intent.
+            noClasses()
+                    .that().resideInAPackage("..domain..")
+                    .should().haveSimpleNameEndingWith("Controller")
+                    .orShould().haveSimpleNameEndingWith("Service")
+                    .orShould().haveSimpleNameEndingWith("Config")
+                    .because("those suffixes signal Spring-layer intent (api/application/"
+                            + "infrastructure); domain types are named after the concept "
+                            + "(User, Email, TaskStatus). 'Repository' stays allowed — it is "
+                            + "the canonical DDD name for a persistence port.")
                     .check(classes);
         }
     }
