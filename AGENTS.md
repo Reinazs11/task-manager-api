@@ -135,6 +135,17 @@ Spins up real Docker containers (PostgreSQL) during tests and tears them down af
 **Why it matters:** testing with H2 (in-memory DB) hides bugs that only surface
 in real PostgreSQL. Clients see this and know you tested for real.
 
+### Mutation testing (PIT) — current state
+Run scoped, never on the whole project: `mvn -P pit test-compile
+org.pitest:pitest-maven:mutationCoverage -DtargetClasses=<pkg> -DtargetTests=<pkg>`.
+Profile `pit` needs `timeoutConstant=30000` (Testcontainers tests exceed the 8s
+default). Recent scores: `common.api.GlobalExceptionHandler` 95%, domain layer
+82%. Remaining survivors are **justified false positives** (do not chase):
+- `hashCode()` returning 0 — no observable contract without a HashMap.
+- `toString()` returning "" — debug-only, not asserted.
+- `equals()` on `User`/`Task` entities — identity-based, partially covered by
+  reconstitute tests; full coverage is low-value.
+
 ### MapStruct
 Generates Entity ↔ DTO mappers at compile time. Faster than ModelMapper,
 type-safe, no reflection.

@@ -227,7 +227,10 @@ filtering, and owner-based authorization.
 
 **Implements:**
 - Full JaCoCo coverage review — fill gaps, remove dead code
-- Architecture review: verify DDD layering (no domain → infra dependencies)
+- Architecture review: extend ArchUnit rules (gaps found in Step 6 audit):
+  - Cross-context isolation via domain (currently only blocks `..infrastructure`)
+  - Force `@RestController` only in `..api..`; `@Service`/`@Repository` outside `..domain..`
+  - Naming: classes in `..domain..` must not end in `Controller`/`Service`/`Repository`
 - README final polish:
   - Architecture diagram (ASCII or image)
   - Full endpoint reference table
