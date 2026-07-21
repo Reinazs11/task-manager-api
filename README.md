@@ -1,5 +1,10 @@
 # Task Manager API
 
+[![CI](https://github.com/Reinazs11/task-manager-api/actions/workflows/ci.yml/badge.svg)](https://github.com/Reinazs11/task-manager-api/actions/workflows/ci.yml)
+[![Java](https://img.shields.io/badge/Java-21-orange)](https://adoptium.net/)
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.3-6DB33F)](https://spring.io/projects/spring-boot)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 REST API for task and project management with JWT authentication, built with
 Java 21 and Spring Boot 3 following Simplified DDD and TDD.
 
