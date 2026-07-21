@@ -76,14 +76,6 @@ public class Task {
         this.updatedAt = Instant.now();
     }
 
-    /**
-     * Convenience shortcut to mark a task as done. Requires IN_PROGRESS first
-     * (TODO -> DONE is not allowed).
-     */
-    public void complete() {
-        transitionTo(TaskStatus.DONE);
-    }
-
     public void changePriority(Priority newPriority) {
         this.priority = Objects.requireNonNull(newPriority, "Priority is required");
         this.updatedAt = Instant.now();

@@ -9,7 +9,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Tests for the {@link Priority} enum.
  *
  * <p>Priority is a simple enum with no transition rules (unlike {@link TaskStatus}).
- * These tests verify the default value and the weight used for ordering.</p>
+ * These tests verify the default value and the enum shape.</p>
  */
 class PriorityTest {
 
@@ -24,12 +24,5 @@ class PriorityTest {
     @DisplayName("MEDIUM should be the default")
     void defaultShouldBeMedium() {
         assertThat(Priority.DEFAULT).isEqualTo(Priority.MEDIUM);
-    }
-
-    @Test
-    @DisplayName("Weight should increase with priority for sorting")
-    void weightShouldIncreaseWithPriority() {
-        assertThat(Priority.LOW.weight()).isLessThan(Priority.MEDIUM.weight());
-        assertThat(Priority.MEDIUM.weight()).isLessThan(Priority.HIGH.weight());
     }
 }

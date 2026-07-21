@@ -104,17 +104,6 @@ class TaskTest {
         }
 
         @Test
-        @DisplayName("complete() should be a shortcut to DONE from IN_PROGRESS")
-        void completeFromInProgress() {
-            Task task = Task.create(PROJECT_ID, OWNER, TITLE);
-            task.transitionTo(TaskStatus.IN_PROGRESS);
-
-            task.complete();
-
-            assertThat(task.getStatus()).isEqualTo(TaskStatus.DONE);
-        }
-
-        @Test
         @DisplayName("Status change should update updatedAt")
         void shouldUpdateTimestampOnStatusChange() throws InterruptedException {
             Task task = Task.create(PROJECT_ID, OWNER, TITLE);
@@ -177,20 +166,6 @@ class TaskTest {
             task.transitionTo(TaskStatus.TODO);
 
             assertThat(task.getStatus()).isEqualTo(TaskStatus.TODO);
-        }
-    }
-
-    @Nested
-    @DisplayName("complete() edge cases")
-    class CompleteEdgeCases {
-
-        @Test
-        @DisplayName("complete() from TODO should throw (must pass through IN_PROGRESS)")
-        void completeFromTodoShouldThrow() {
-            Task task = Task.create(PROJECT_ID, OWNER, TITLE);
-
-            assertThatThrownBy(task::complete)
-                    .isInstanceOf(InvalidStatusTransitionException.class);
         }
     }
 

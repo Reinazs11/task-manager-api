@@ -36,14 +36,13 @@ public class CreateTaskUseCase {
         Project project = projectRepository.findById(projectId)
                 .orElseThrow(() -> new AccessDeniedException("Cannot add tasks to this project"));
 
-        Project.TaskAdded result = project.addTask(new TaskTitle(title));
-        Task taskToPersist = result.task();
+        Task task = project.addTask(new TaskTitle(title));
 
         // Override priority if explicitly provided; default comes from Task.create
         if (priority != null) {
-            taskToPersist.changePriority(priority);
+            task.changePriority(priority);
         }
 
-        return taskRepository.save(taskToPersist);
+        return taskRepository.save(task);
     }
 }
