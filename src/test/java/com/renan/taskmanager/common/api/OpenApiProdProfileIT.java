@@ -28,7 +28,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * before Flyway existed. Now Flyway applies {@code V1__init_schema.sql} on
  * startup, so Hibernate validates successfully — no override needed.</p>
  */
-@SpringBootTest(properties = "spring.profiles.active=prod")
+@SpringBootTest(properties = {
+        "spring.profiles.active=prod",
+        // Prod profile ships CORS_ALLOWED_ORIGINS empty on purpose (fail-fast).
+        // This test exercises swagger-off behavior, not CORS — supply a value so
+        // the ApplicationContext can start.
+        "app.cors.allowed-origins=https://prod.example.com"
+})
 class OpenApiProdProfileIT extends AbstractIntegrationTest {
 
     @Test

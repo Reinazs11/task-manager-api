@@ -4,9 +4,10 @@
 # optimized for local development; this file tightens the knobs that matter in
 # production:
 #   - Swagger UI and api-docs are DISABLED (internal docs must not leak).
-#   - Hibernate never mutates the schema (validate-only): Flyway/Liquibase own
-#     migrations in prod. ddl-auto=update in dev is a development convenience.
+#   - Hibernate runs validate-only in ALL profiles (dev included). Flyway owns
+#     the schema end-to-end; Hibernate never mutates it.
 #   - SQL formatting is off (noise reduction); SQL logs are WARN.
+#   - CORS allowed-origins must be provided explicitly (no dev default here).
 spring:
   jpa:
     hibernate:
@@ -20,6 +21,12 @@ springdoc:
     enabled: false
   api-docs:
     enabled: false
+
+app:
+  cors:
+    # No default: production MUST set CORS_ALLOWED_ORIGINS. If unset, the app
+    # fails fast at startup rather than silently allowing any origin.
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:}
 
 logging:
   level:

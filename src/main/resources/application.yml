@@ -55,6 +55,11 @@ app:
     refresh-token-expiration-ms: 604800000  # 7 dias
   api:
     version: ${APP_VERSION:0.1.0}
+  cors:
+    # Origins allowed to make credentialed (cookie/Auth header) browser requests.
+    # Dev default covers the typical Vite/React dev server. In prod, override
+    # via CORS_ALLOWED_ORIGINS (see application-prod.yml).
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
 
 logging:
   level:
