@@ -42,7 +42,9 @@ services:
       DB_USER: ${POSTGRES_USER:-taskmanager}
       DB_PASSWORD: ${POSTGRES_PASSWORD:-taskmanager}
       SPRING_PROFILES_ACTIVE: dev
-      JWT_SECRET: ${JWT_SECRET:-}
+      # Default de desenvolvimento (mesma chave do application.yml). O .env
+      # tem precedência — em produção, SEMPRE defina JWT_SECRET lá.
+      JWT_SECRET: ${JWT_SECRET:-dGhpcy1pcy1hLWRldmVsb3BtZW50LWp3dC1zZWNyZXQta2V5LWRvLW5vdC11c2UtaW4tcHJvZHVjdGlvbi1wbGVhc2U=}
     ports:
       - "8080:8080"
     networks:
