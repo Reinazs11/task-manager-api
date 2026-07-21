@@ -43,9 +43,7 @@ public class TaskController {
                     content = @Content(schema = @Schema(implementation = TaskResponse.class))),
             @ApiResponse(responseCode = "400", description = "Validation failure (missing/null status)",
                     content = @Content(schema = @Schema(implementation = com.renan.taskmanager.common.api.ErrorResponse.class))),
-            @ApiResponse(responseCode = "403", description = "Not the task owner",
-                    content = @Content(schema = @Schema(implementation = com.renan.taskmanager.common.api.ErrorResponse.class))),
-            @ApiResponse(responseCode = "404", description = "No such task",
+            @ApiResponse(responseCode = "403", description = "Not the task owner, or no such task",
                     content = @Content(schema = @Schema(implementation = com.renan.taskmanager.common.api.ErrorResponse.class))),
             @ApiResponse(responseCode = "409", description = "Invalid status transition",
                     content = @Content(schema = @Schema(implementation = com.renan.taskmanager.common.api.ErrorResponse.class)))

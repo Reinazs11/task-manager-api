@@ -38,6 +38,7 @@ class CreateTaskUseCaseTest {
         ProjectId pid = ProjectId.generate();
         Project project = Project.reconstitute(pid, owner, "P1",
                 List.of(), Instant.now(), Instant.now());
+        when(projectRepository.existsByIdAndOwnerId(pid, owner)).thenReturn(true);
         when(projectRepository.findById(pid)).thenReturn(Optional.of(project));
         when(taskRepository.save(any(Task.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -48,24 +49,15 @@ class CreateTaskUseCaseTest {
         assertThat(result.getPriority()).isEqualTo(Priority.HIGH);
     }
 
-    @Test
-    void shouldThrow404WhenProjectNotFound() {
-        ProjectId pid = ProjectId.generate();
-        when(projectRepository.findById(pid)).thenReturn(Optional.empty());
-
-        assertThatThrownBy(() -> useCase.execute(pid, UserId.generate(), "T", null))
-                .isInstanceOf(ProjectNotFoundException.class);
-        verify(taskRepository, never()).save(any());
-    }
-
+    /**
+     * Anti-enumeration: "project exists but not yours" and "project does not
+     * exist" are indistinguishable. Both collapse to 403.
+     */
     @Test
     void shouldThrow403WhenNonOwnerRequests() {
-        UserId owner = UserId.generate();
         UserId attacker = UserId.generate();
         ProjectId pid = ProjectId.generate();
-        Project project = Project.reconstitute(pid, owner, "P1",
-                List.of(), Instant.now(), Instant.now());
-        when(projectRepository.findById(pid)).thenReturn(Optional.of(project));
+        when(projectRepository.existsByIdAndOwnerId(pid, attacker)).thenReturn(false);
 
         assertThatThrownBy(() -> useCase.execute(pid, attacker, "T", null))
                 .isInstanceOf(AccessDeniedException.class);

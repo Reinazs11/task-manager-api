@@ -15,6 +15,8 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -33,6 +35,7 @@ class UpdateTaskStatusUseCaseTest {
         Task task = Task.reconstitute(tid, ProjectId.generate(), owner,
                 new TaskTitle("T"), TaskStatus.TODO, Priority.MEDIUM,
                 Instant.now(), Instant.now());
+        when(taskRepository.existsByIdAndOwnerId(tid, owner)).thenReturn(true);
         when(taskRepository.findById(tid)).thenReturn(Optional.of(task));
         when(taskRepository.save(any(Task.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -41,27 +44,19 @@ class UpdateTaskStatusUseCaseTest {
         assertThat(result.getStatus()).isEqualTo(TaskStatus.IN_PROGRESS);
     }
 
-    @Test
-    void shouldThrow404WhenTaskNotFound() {
-        TaskId tid = TaskId.generate();
-        when(taskRepository.findById(tid)).thenReturn(Optional.empty());
-
-        assertThatThrownBy(() -> useCase.execute(tid, UserId.generate(), TaskStatus.DONE))
-                .isInstanceOf(TaskNotFoundException.class);
-    }
-
+    /**
+     * Anti-enumeration: "task exists but not yours" and "task does not exist"
+     * must be indistinguishable to the caller. Both collapse to 403.
+     */
     @Test
     void shouldThrow403WhenNonOwnerRequests() {
-        UserId owner = UserId.generate();
         UserId attacker = UserId.generate();
         TaskId tid = TaskId.generate();
-        Task task = Task.reconstitute(tid, ProjectId.generate(), owner,
-                new TaskTitle("T"), TaskStatus.TODO, Priority.MEDIUM,
-                Instant.now(), Instant.now());
-        when(taskRepository.findById(tid)).thenReturn(Optional.of(task));
+        when(taskRepository.existsByIdAndOwnerId(tid, attacker)).thenReturn(false);
 
         assertThatThrownBy(() -> useCase.execute(tid, attacker, TaskStatus.IN_PROGRESS))
                 .isInstanceOf(AccessDeniedException.class);
+        verify(taskRepository, never()).findById(any());
     }
 
     @Test
@@ -71,6 +66,7 @@ class UpdateTaskStatusUseCaseTest {
         Task task = Task.reconstitute(tid, ProjectId.generate(), owner,
                 new TaskTitle("T"), TaskStatus.TODO, Priority.MEDIUM,
                 Instant.now(), Instant.now());
+        when(taskRepository.existsByIdAndOwnerId(tid, owner)).thenReturn(true);
         when(taskRepository.findById(tid)).thenReturn(Optional.of(task));
 
         assertThatThrownBy(() -> useCase.execute(tid, owner, TaskStatus.DONE))

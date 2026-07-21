@@ -96,28 +96,10 @@ class ErrorResponseContractIT extends AbstractIntegrationTest {
     // ========================================================================
     // 404 NOT_FOUND
     // ========================================================================
-
-    @Nested
-    @DisplayName("404 NOT_FOUND contract")
-    class NotFound {
-
-        @Test
-        @DisplayName("Project lookup miss returns the 6-field error shape")
-        void projectNotFound() throws Exception {
-            String token = registerAndLogin("alice@example.com");
-            String uri = "/api/v1/projects/" + UUID.randomUUID();
-
-            mockMvc.perform(get(uri).header("Authorization", "Bearer " + token))
-                    .andExpect(status().isNotFound())
-                    .andExpect(jsonPath("$.timestamp").isNotEmpty())
-                    .andExpect(jsonPath("$.status").value(404))
-                    .andExpect(jsonPath("$.error").value("Not Found"))
-                    .andExpect(jsonPath("$.message").isNotEmpty())
-                    .andExpect(jsonPath("$.path").value(uri))
-                    .andExpect(jsonPath("$.details").isArray())
-                    .andExpect(jsonPath("$.details.length()").value(0));
-        }
-    }
+    // Authenticated resource lookups (project/task miss) no longer reach here:
+    // they collapse to 403 to prevent enumeration (see GetProjectUseCase and
+    // DeleteProjectUseCase Javadoc). The 404 contract is now only exercised
+    // via unknown routes, which is covered by UnknownRoute further below.
 
     // ========================================================================
     // 409 CONFLICT (duplicate email)
@@ -427,17 +409,19 @@ class ErrorResponseContractIT extends AbstractIntegrationTest {
     }
 
     // ========================================================================
-    // 404 NOT_FOUND (task lookup miss)
+    // 403 FORBIDDEN — task lookup miss collapsed (anti-enumeration)
     // ========================================================================
-    // Exercises TaskNotFoundException directly via the tasks PATCH endpoint,
-    // rather than only via the invalid-transition path.
+    // PATCH status on a task that does not exist returns 403 (not 404), so a
+    // caller cannot distinguish "exists but not mine" from "does not exist".
+    // Same collapse the project endpoints already apply. The error envelope
+    // still follows the 6-field contract.
     @Nested
-    @DisplayName("404 NOT_FOUND contract (task lookup miss)")
-    class TaskNotFound {
+    @DisplayName("403 FORBIDDEN contract (task lookup miss collapsed)")
+    class TaskLookupMissCollapsed {
 
         @Test
-        @DisplayName("PATCH status on a non-existent task returns the 6-field error shape")
-        void taskNotFound() throws Exception {
+        @DisplayName("PATCH status on a non-existent task returns 403 with the 6-field error shape")
+        void taskLookupMiss() throws Exception {
             String token = registerAndLogin("alice@example.com");
             String uri = "/api/v1/tasks/" + UUID.randomUUID() + "/status";
 
@@ -447,10 +431,10 @@ class ErrorResponseContractIT extends AbstractIntegrationTest {
                             .header("Authorization", "Bearer " + token)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(body)))
-                    .andExpect(status().isNotFound())
+                    .andExpect(status().isForbidden())
                     .andExpect(jsonPath("$.timestamp").isNotEmpty())
-                    .andExpect(jsonPath("$.status").value(404))
-                    .andExpect(jsonPath("$.error").value("Not Found"))
+                    .andExpect(jsonPath("$.status").value(403))
+                    .andExpect(jsonPath("$.error").value("Forbidden"))
                     .andExpect(jsonPath("$.message").isNotEmpty())
                     .andExpect(jsonPath("$.path").value(uri))
                     .andExpect(jsonPath("$.details").isArray())

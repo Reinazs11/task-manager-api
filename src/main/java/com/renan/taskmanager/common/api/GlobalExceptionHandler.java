@@ -1,8 +1,6 @@
 package com.renan.taskmanager.common.api;
 
 import com.renan.taskmanager.tasks.domain.InvalidStatusTransitionException;
-import com.renan.taskmanager.tasks.domain.ProjectNotFoundException;
-import com.renan.taskmanager.tasks.domain.TaskNotFoundException;
 import com.renan.taskmanager.users.domain.InvalidCredentialsException;
 import com.renan.taskmanager.users.domain.UserAlreadyExistsException;
 import org.slf4j.Logger;
@@ -63,16 +61,9 @@ public class GlobalExceptionHandler {
     }
 
     // ===== Tasks exceptions =====
-
-    @ExceptionHandler(ProjectNotFoundException.class)
-    public ResponseEntity<ErrorResponse> handleProjectNotFound(ProjectNotFoundException ex, WebRequest request) {
-        return buildResponse(HttpStatus.NOT_FOUND, ex.getMessage(), List.of(), request);
-    }
-
-    @ExceptionHandler(TaskNotFoundException.class)
-    public ResponseEntity<ErrorResponse> handleTaskNotFound(TaskNotFoundException ex, WebRequest request) {
-        return buildResponse(HttpStatus.NOT_FOUND, ex.getMessage(), List.of(), request);
-    }
+    // Note: project/task lookup misses no longer raise a NotFoundException —
+    // ownership is checked first via existsByIdAndOwnerId, so a miss collapses
+    // to AccessDeniedException (→ 403) to prevent resource enumeration.
 
     @ExceptionHandler(InvalidStatusTransitionException.class)
     public ResponseEntity<ErrorResponse> handleInvalidStatusTransition(InvalidStatusTransitionException ex, WebRequest request) {
