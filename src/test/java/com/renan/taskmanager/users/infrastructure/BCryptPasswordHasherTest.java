@@ -6,6 +6,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -13,7 +14,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Tests for {@link BCryptPasswordHasher}.
  *
  * <p>Pure unit test — no Spring context needed. We instantiate the hasher
- * directly. This is fast and isolates the behavior.</p>
+ * directly with a real {@link BCryptPasswordEncoder} (the same bean shape
+ * that {@code SecurityConfig} exposes in production). This is fast and
+ * isolates the behavior.</p>
  *
  * <p><b>Key BCrypt properties tested:</b>
  * - Same password produces different hashes (salt is random)
@@ -26,7 +29,9 @@ class BCryptPasswordHasherTest {
 
     @BeforeEach
     void setUp() {
-        hasher = new BCryptPasswordHasher();
+        // Cost 12 matches SecurityConfig's bean. The test does not assert on
+        // timing, so 12 doesn't slow it down meaningfully.
+        hasher = new BCryptPasswordHasher(new BCryptPasswordEncoder(12));
     }
 
     @Nested

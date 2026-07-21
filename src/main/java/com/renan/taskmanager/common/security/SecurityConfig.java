@@ -28,10 +28,10 @@ import java.util.List;
  * token (CSRF targets session-based auth, irrelevant for stateless APIs). This
  * scales horizontally and is the standard for REST APIs in 2026.</p>
  *
- * <p><b>Why is BCryptPasswordEncoder exposed here too?</b>
- * Spring Security expects a {@link PasswordEncoder} bean for several features
- * (e.g. PasswordEncoderFactories). Our domain {@code BCryptPasswordHasher}
- * delegates to it internally; this bean makes it available to the framework.</p>
+ * <p><b>Why expose the {@link PasswordEncoder} as a bean here?</b>
+ * Spring Security expects one for several framework features
+ * (e.g. PasswordEncoderFactories), and our domain {@code BCryptPasswordHasher}
+ * injects the same bean — single source of truth for the cost factor.</p>
  *
  * <p><b>Public routes:</b> {@code /api/v1/auth/**} (register, login) and
  * API documentation ({@code /swagger-ui/**}, {@code /v3/api-docs/**}).
@@ -121,12 +121,16 @@ public class SecurityConfig {
     /**
      * Exposes a BCrypt PasswordEncoder as a Spring bean.
      *
-     * <p>Used by the framework internally and available to other components
-     * that prefer to inject {@link PasswordEncoder} directly.</p>
+     * <p><b>Single source of truth:</b> {@code BCryptPasswordHasher} injects
+     * this bean rather than constructing its own encoder, so the cost factor
+     * lives in exactly one place.</p>
+     *
+     * <p><b>Cost 12:</b> aligns with OWASP 2026 recommendations. Each cost
+     * point doubles compute time; 12 is the floor for new deployments.</p>
      */
     @Bean
     public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder(10);
+        return new BCryptPasswordEncoder(12);
     }
 
     /**
