@@ -100,6 +100,15 @@ Java 21 and Spring Boot 3 following Simplified DDD and TDD.
 Contexts communicate only through the **`common` shared kernel** — never
 directly. ArchUnit enforces this.
 
+### Why "simplified" DDD?
+
+Full DDD adds aggregates, events, factories, anti-corruption layers and more —
+useful in large systems, but ceremony without payoff at this scale. We keep
+the patterns that earn their place (**bounded contexts, value objects, pure
+domain layer, ports/adapters**) and skip the rest (events, ACLs, context
+mapping). The pragmatic middle between a flat `controller/service/repository`
+layout and enterprise DDD.
+
 ---
 
 ## API endpoints
