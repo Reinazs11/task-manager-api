@@ -25,12 +25,14 @@ class JwtServiceTest {
 
     // 32+ bytes base64-decoded to UTF-8 (kept as plain string for readability in tests)
     private static final String TEST_SECRET = "test-secret-key-with-at-least-32-bytes-for-hs256-signing-tests-Ok!";
+    private static final String ISSUER = "task-manager-api";
+    private static final String AUDIENCE = "task-manager-api-users";
 
     private JwtService jwtService;
 
     @BeforeEach
     void setUp() {
-        jwtService = new JwtService(TEST_SECRET, 60_000L, 3_600_000L);
+        jwtService = new JwtService(TEST_SECRET, 60_000L, 3_600_000L, ISSUER, AUDIENCE);
     }
 
     @Nested
@@ -94,7 +96,7 @@ class JwtServiceTest {
         @DisplayName("Should reject a token signed with a different key")
         void shouldRejectTokenSignedWithDifferentKey() {
             // Service A signs the token
-            JwtService other = new JwtService("another-32-byte-secret-key-for-testing-Ok!!", 60_000L, 3_600_000L);
+            JwtService other = new JwtService("another-32-byte-secret-key-for-testing-Ok!!", 60_000L, 3_600_000L, ISSUER, AUDIENCE);
             String token = other.generateAccessToken(UUID.randomUUID(), "x@example.com");
 
             // Service B (our subject) tries to validate with a different key
@@ -142,7 +144,7 @@ class JwtServiceTest {
         @DisplayName("Should reject an expired token")
         void shouldRejectExpiredToken() throws InterruptedException {
             // Build a service with 1ms TTL so the token expires immediately
-            JwtService shortLived = new JwtService(TEST_SECRET, 1L, 1L);
+            JwtService shortLived = new JwtService(TEST_SECRET, 1L, 1L, ISSUER, AUDIENCE);
             String token = shortLived.generateAccessToken(UUID.randomUUID(), "x@example.com");
 
             Thread.sleep(50);  // ensure it expired
@@ -162,9 +164,94 @@ class JwtServiceTest {
             // HS256 requires a key of at least 256 bits (32 bytes).
             // A 5-char ASCII string is 5 bytes (40 bits), well below the minimum.
             // jjwt throws WeakKeyException (a RuntimeException subclass) for this case.
-            assertThatThrownBy(() -> new JwtService("short", 60_000L, 3_600_000L))
+            assertThatThrownBy(() -> new JwtService("short", 60_000L, 3_600_000L, ISSUER, AUDIENCE))
                     .isInstanceOf(io.jsonwebtoken.security.WeakKeyException.class)
                     .hasMessageContaining("256 bits");
+        }
+    }
+
+    @Nested
+    @DisplayName("Issuer and audience claims")
+    class IssuerAudience {
+
+        @Test
+        @DisplayName("Generated token should carry iss and aud claims")
+        void tokenShouldCarryIssuerAndAudience() {
+            String token = jwtService.generateAccessToken(UUID.randomUUID(), "x@example.com");
+
+            Claims claims = jwtService.parseAndValidate(token);
+
+            assertThat(claims.getIssuer()).isEqualTo(ISSUER);
+            assertThat(claims.getAudience()).contains(AUDIENCE);
+        }
+
+        @Test
+        @DisplayName("parseAndValidate should reject a token from a different issuer")
+        void shouldRejectTokenWithDifferentIssuer() {
+            // Service A mints a token with issuer "other-issuer"
+            JwtService otherIssuer = new JwtService(
+                    TEST_SECRET, 60_000L, 3_600_000L, "other-issuer", AUDIENCE);
+            String token = otherIssuer.generateAccessToken(UUID.randomUUID(), "x@example.com");
+
+            // Service B (same key!) rejects it because iss does not match
+            assertThatThrownBy(() -> jwtService.parseAndValidate(token))
+                    .isInstanceOf(JwtException.class);
+        }
+
+        @Test
+        @DisplayName("parseAndValidate should reject a token for a different audience")
+        void shouldRejectTokenWithDifferentAudience() {
+            // Defense-in-depth: same key, same issuer, but the audience targets
+            // a different service. Our parser must still reject it.
+            JwtService otherAudience = new JwtService(
+                    TEST_SECRET, 60_000L, 3_600_000L, ISSUER, "other-audience");
+            String token = otherAudience.generateAccessToken(UUID.randomUUID(), "x@example.com");
+
+            assertThatThrownBy(() -> jwtService.parseAndValidate(token))
+                    .isInstanceOf(JwtException.class);
+        }
+    }
+
+    @Nested
+    @DisplayName("Centralized type check")
+    class TypeAwareParsing {
+
+        @Test
+        @DisplayName("parseAccessToken should accept an access token")
+        void parseAccessTokenShouldAcceptAccessToken() {
+            String token = jwtService.generateAccessToken(UUID.randomUUID(), "x@example.com");
+
+            Claims claims = jwtService.parseAccessToken(token);
+
+            assertThat(jwtService.extractTokenType(claims)).isEqualTo(JwtService.TYPE_ACCESS);
+        }
+
+        @Test
+        @DisplayName("parseAccessToken should reject a refresh token")
+        void parseAccessTokenShouldRejectRefreshToken() {
+            String token = jwtService.generateRefreshToken(UUID.randomUUID(), "x@example.com");
+
+            assertThatThrownBy(() -> jwtService.parseAccessToken(token))
+                    .isInstanceOf(JwtException.class);
+        }
+
+        @Test
+        @DisplayName("parseRefreshToken should accept a refresh token")
+        void parseRefreshTokenShouldAcceptRefreshToken() {
+            String token = jwtService.generateRefreshToken(UUID.randomUUID(), "x@example.com");
+
+            Claims claims = jwtService.parseRefreshToken(token);
+
+            assertThat(jwtService.extractTokenType(claims)).isEqualTo(JwtService.TYPE_REFRESH);
+        }
+
+        @Test
+        @DisplayName("parseRefreshToken should reject an access token")
+        void parseRefreshTokenShouldRejectAccessToken() {
+            String token = jwtService.generateAccessToken(UUID.randomUUID(), "x@example.com");
+
+            assertThatThrownBy(() -> jwtService.parseRefreshToken(token))
+                    .isInstanceOf(JwtException.class);
         }
     }
 }

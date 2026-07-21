@@ -57,7 +57,8 @@ class LoginUseCaseTest {
 
     @BeforeEach
     void setUp() {
-        jwtService = new JwtService(TEST_SECRET, ACCESS_TTL_MS, REFRESH_TTL_MS);
+        jwtService = new JwtService(TEST_SECRET, ACCESS_TTL_MS, REFRESH_TTL_MS,
+                "task-manager-api", "task-manager-api-users");
         useCase = new LoginUseCase(userRepository, passwordHasher, jwtService, ACCESS_TTL_MS, REFRESH_TTL_MS);
     }
 

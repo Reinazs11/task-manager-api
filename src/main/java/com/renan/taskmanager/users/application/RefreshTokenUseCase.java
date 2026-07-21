@@ -16,12 +16,10 @@ import java.util.UUID;
  *
  * <p><b>Flow:</b></p>
  * <ol>
- *   <li>Parse + signature/exp validation via {@link JwtService#parseAndValidate}.
- *       Any failure surfaces as {@link JwtException}, which the
- *       {@code JwtAuthenticationFilter} / {@code GlobalExceptionHandler}
- *       pipeline maps to HTTP 401.</li>
- *   <li>Reject tokens whose {@code type} claim is not {@code "refresh"}. This
- *       prevents an access token from being used as a refresh token.</li>
+ *   <li>Parse + signature + expiration + iss/aud + type=refresh validation,
+ *       all centralized in {@link JwtService#parseRefreshToken}. Any failure
+ *       (bad signature, expired, wrong type, wrong issuer/audience, malformed)
+ *       surfaces as {@link JwtException}.</li>
  *   <li>Re-issue a fresh access + refresh pair. The {@code jti} of the new
  *       tokens differs from the original, so callers can detect rotation.</li>
  * </ol>
@@ -36,9 +34,12 @@ import java.util.UUID;
  * canonical next step.</p>
  *
  * <p><b>Why {@link InvalidCredentialsException} (→ 401)?</b>
- * The wrong-token-type case is conceptually a credentials failure: the caller
- * presented something that is not a valid refresh token. 401 matches both
- * the JWT spec expectation and the existing login failure contract.</p>
+ * Any failure (wrong type, tampered, expired, bad iss/aud, malformed) is
+ * conceptually a credentials failure: the caller presented something that
+ * is not a valid refresh token. The original JwtException details are
+ * intentionally collapsed to a single message — callers must not learn
+ * why the token failed. 401 matches both the JWT spec expectation and the
+ * existing login failure contract.</p>
  */
 @Service
 public class RefreshTokenUseCase {
@@ -60,18 +61,11 @@ public class RefreshTokenUseCase {
     public TokenResponse execute(String refreshToken) {
         Claims claims;
         try {
-            claims = jwtService.parseAndValidate(refreshToken);
+            claims = jwtService.parseRefreshToken(refreshToken);
         } catch (JwtException e) {
-            // Re-throw as the domain credentials exception so GlobalExceptionHandler
-            // maps it to 401 with the standard envelope. The JwtException details
-            // (expired, tampered, malformed) are intentionally collapsed to a single
-            // message — callers must not learn why the token failed.
-            throw new InvalidCredentialsException();
-        }
-
-        String tokenType = jwtService.extractTokenType(claims);
-        if (!JwtService.TYPE_REFRESH.equals(tokenType)) {
-            // Access token (or anything else) used as refresh — reject as 401.
+            // Collapse every failure to the same 401 — anti-enumeration:
+            // callers must not learn whether the token was expired, tampered,
+            // or the wrong type.
             throw new InvalidCredentialsException();
         }
 

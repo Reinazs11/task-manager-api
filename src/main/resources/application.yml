@@ -53,6 +53,11 @@ app:
     secret: ${JWT_SECRET:dGhpcy1pcy1hLWRldmVsb3BtZW50LWp3dC1zZWNyZXQta2V5LWRvLW5vdC11c2UtaW4tcHJvZHVjdGlvbi1wbGVhc2U=}
     access-token-expiration-ms: 900000      # 15 minutos
     refresh-token-expiration-ms: 604800000  # 7 dias
+    # iss/aud claims: defense-in-depth. Even in a single-service API, if
+    # another service ever shares this signing key its tokens would be valid
+    # here unless the audience is checked.
+    issuer: ${JWT_ISSUER:task-manager-api}
+    audience: ${JWT_AUDIENCE:task-manager-api-users}
   api:
     version: ${APP_VERSION:0.1.0}
   cors:
