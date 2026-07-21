@@ -221,35 +221,63 @@ filtering, and owner-based authorization.
 
 ---
 
-## Step 7 — Polish and Release
+## Step 7 — Polish and Release ✅ DONE
 
 **Goal:** Final review pass and GitHub publication.
 
-**Implements:**
-- Full JaCoCo coverage review — fill gaps, remove dead code
-- Architecture review: extend ArchUnit rules (gaps found in Step 6 audit):
-  - Cross-context isolation via domain (currently only blocks `..infrastructure`)
-  - Force `@RestController` only in `..api..`; `@Service`/`@Repository` outside `..domain..`
-  - Naming: classes in `..domain..` must not end in `Controller`/`Service`/`Repository`
-- README final polish:
-  - Architecture diagram (ASCII or image)
-  - Full endpoint reference table
-  - How-to-run for both Docker and IDE
-  - Testing instructions
-  - Tech stack rationale
-- `LICENSE` file (MIT or similar)
-- Clean git history (rebase if needed, meaningful commits)
-- GitHub repository created and pushed
-- GitHub repo description + topics (java, spring-boot, rest-api, jwt, postgresql,
-  testcontainers, ddd, tdd)
-- Optional: GitHub Actions CI workflow (run tests on push)
+**Implemented in four sub-steps:**
+
+### Step 7a — Quality Gates & Refactor de Testes
+- `AbstractIntegrationTest` centralizes `@SpringBootTest`, `@AutoConfigureMockMvc`,
+  MockMvc, and ObjectMapper for every full-stack integration test.
+- `TestContainersConfig` exposes the PostgreSQL container as a `@Bean` with
+  `@ServiceConnection`, aligning its lifecycle with Spring's ApplicationContext
+  cache (fixes the `CannotCreateTransactionException` race that 12 tests hit
+  when each class owned a static `@Container`).
+- **Surefire/Failsafe split:** `*Test.java` (unit, fast, no Docker) vs
+  `*IT.java` (integration, real PostgreSQL). Renamed 8 classes.
+- Fixed a flaky JWT tamper test: tamper with the payload, not the signature
+  (Base64URL padding bits made the old assertion non-deterministic).
+- JaCoCo: 96.7% line coverage (gate at 80%).
+
+### Step 7b — Schema Migration (Flyway) (`542f4da`, `bf3b16b`)
+- `flyway-core` + `flyway-database-postgresql` (Flyway 10 splits per-DB support).
+- `db/migration/V1__init_schema.sql` captures the schema matching the JPA
+  entities with FKs, CASCADE on owner/project delete, CHECK constraints
+  mirroring the domain enums, and supporting indexes.
+- `ddl-auto=validate` in ALL profiles now (dev and prod). Flyway owns the schema.
+- Decision documented in `AGENTS.md`.
+
+### Step 7c — Architecture & Documentation Polish
+- **ArchUnit expanded** (`35c3cd2`):
+  - Cross-context isolation via `common` shared kernel (caught and fixed a real
+    violation: `TaskRepositoryImpl` taking `users.domain.UserId`).
+  - `@RestController`/`@Controller` only in `..api..`.
+  - Spring stereotypes forbidden in `..domain..`.
+  - Naming: domain classes must not end in `Controller`/`Service`/`Config`
+    (`Repository` stays allowed — canonical DDD persistence port).
+- **UserId moved to `common.domain`** (`1d88620`) — the shared kernel pattern
+  that lets the two bounded contexts collaborate without direct dependencies.
+- **JaCoCo merge** (`a1b881f`): unit + integration exec files are merged before
+  the coverage gate runs, so the check reflects both suites.
+- **README rewritten** (`2740fd2`): portfolio-grade with highlights, tech-stack
+  table, ASCII architecture diagram, endpoint reference table, how-to-run,
+  testing section, engineering-decisions table.
+- **MIT `LICENSE`** and **`.dockerignore`** added.
+
+### Step 7d — CI & Release GitHub
+- **GitHub Actions workflow** (`.github/workflows/ci.yml`): builds, runs all
+  tests (unit + integration with real PostgreSQL via Testcontainers), enforces
+  the JaCoCo 80% gate. Uploads the coverage report as an artifact. Runs on
+  push to `main`/`feat/**`/`fix/**` and on every PR to `main`.
+- Published to GitHub with description and topics.
 
 **Acceptance criteria:**
-- [ ] Coverage ≥ 80% with meaningful tests (no filler)
-- [ ] No compiler warnings
-- [ ] README explains everything a reviewer needs
-- [ ] Project published on GitHub
-- [ ] Repository is presentable as a portfolio piece
+- [x] Coverage ≥ 80% with meaningful tests (no filler) — currently 96.7%
+- [x] No compiler warnings
+- [x] README explains everything a reviewer needs
+- [x] Project published on GitHub
+- [x] Repository is presentable as a portfolio piece
 
 ---
 
@@ -265,6 +293,6 @@ filtering, and owner-based authorization.
 | 6a. Standardized Error Handling | ✅ DONE | `059c2c8` |
 | 6b. OpenAPI Documentation | ✅ DONE | `564376e` |
 | 6c. Observability & Logging | ✅ DONE | `d7fd17f` |
-| 7. Polish and Release | ⬜ NEXT | — |
+| 7. Polish and Release | ✅ DONE | `93e18d6`, `1165fb4`, `f616934`, `542f4da`, `bf3b16b`, `1d88620`, `35c3cd2`, `a1b881f`, `2740fd2` |
 
 **Legend:** ✅ DONE · ⏳ NEXT/IN PROGRESS · ⬜ PENDING
