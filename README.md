@@ -141,9 +141,13 @@ Every error returns a single JSON shape:
 ### Bring everything up (PostgreSQL + API)
 
 ```bash
-cp .env.example .env          # adjust JWT_SECRET for any real use
+cp .env.example .env          # optional for dev, mandatory for prod (sets JWT_SECRET)
 docker compose up --build
 ```
+
+> The dev profile ships a default `JWT_SECRET`, so `docker compose up --build`
+> works without `.env` for a first run. Override it via `.env` for anything
+> beyond local development.
 
 The API starts at `http://localhost:8080`.
 Swagger UI: `http://localhost:8080/swagger-ui.html` (dev profile only).
