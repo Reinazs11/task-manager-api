@@ -2,7 +2,7 @@ package com.renan.taskmanager.tasks.application;
 
 import com.renan.taskmanager.tasks.domain.Project;
 import com.renan.taskmanager.tasks.domain.ProjectRepository;
-import com.renan.taskmanager.users.domain.UserId;
+import com.renan.taskmanager.common.domain.UserId;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 

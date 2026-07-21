@@ -1,6 +1,6 @@
 package com.renan.taskmanager.tasks.domain;
 
-import com.renan.taskmanager.users.domain.UserId;
+import com.renan.taskmanager.common.domain.UserId;
 
 import java.time.Instant;
 import java.util.Objects;

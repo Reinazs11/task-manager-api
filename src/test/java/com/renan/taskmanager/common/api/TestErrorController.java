@@ -4,7 +4,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Test-only controller that always blows up, used by {@link ErrorResponseContractTest}
+ * Test-only controller that always blows up, used by {@link ErrorResponseContractIT}
  * to exercise the catch-all {@code @ExceptionHandler(Exception.class)} → 500 path.
  *
  * <p><b>Why a dedicated fixture instead of forcing an NPE somewhere in real

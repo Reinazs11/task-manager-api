@@ -1,6 +1,6 @@
 package com.renan.taskmanager.tasks.domain;
 
-import com.renan.taskmanager.users.domain.UserId;
+import com.renan.taskmanager.common.domain.UserId;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;

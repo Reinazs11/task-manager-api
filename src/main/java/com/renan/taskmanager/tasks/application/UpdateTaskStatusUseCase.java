@@ -5,7 +5,7 @@ import com.renan.taskmanager.tasks.domain.TaskId;
 import com.renan.taskmanager.tasks.domain.TaskNotFoundException;
 import com.renan.taskmanager.tasks.domain.TaskRepository;
 import com.renan.taskmanager.tasks.domain.TaskStatus;
-import com.renan.taskmanager.users.domain.UserId;
+import com.renan.taskmanager.common.domain.UserId;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

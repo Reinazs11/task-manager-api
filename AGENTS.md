@@ -108,9 +108,15 @@ docs: update README with new endpoints
 - [x] **OpenAPI in prod: disabled.** `application-prod.yml` sets
   `springdoc.swagger-ui.enabled=false` and `springdoc.api-docs.enabled=false`.
   Internal docs must not leak to production.
-- [ ] Schema migration strategy (Flyway? Liquibase? ddl-auto=validate?).
-  Note: `application-prod.yml` already uses `ddl-auto=validate`, so a migration
-  tool must own schema changes before Step 7 deploy.
+- [x] **Schema migration strategy: Flyway 10 + SQL versioned files**
+  (decided in Step 7b). Rationale: Flyway uses plain SQL (more readable than
+  Liquibase XML/YAML for a small, stable schema), has massive adoption in the
+  Spring ecosystem, and is the idiom a reviewer expects. Concrete pieces:
+  `flyway-core` + `flyway-database-postgresql` (Flyway 10 splits per-DB support
+  into separate modules); `src/main/resources/db/migration/V1__init_schema.sql`
+  captures the schema matching the JPA entities; `application.yml` sets
+  `ddl-auto=validate` in all profiles so Flyway owns the schema end-to-end.
+  Changes go in `V2__`, `V3__`, etc. — never edit `V1` after it's been applied.
 
 ## Modern stack — quick reference
 

@@ -3,7 +3,7 @@ package com.renan.taskmanager.users.application;
 import com.renan.taskmanager.users.domain.Email;
 import com.renan.taskmanager.users.domain.Password;
 import com.renan.taskmanager.users.domain.User;
-import com.renan.taskmanager.users.domain.UserId;
+import com.renan.taskmanager.common.domain.UserId;
 import com.renan.taskmanager.users.infrastructure.UserEntity;
 import org.mapstruct.Mapper;
 

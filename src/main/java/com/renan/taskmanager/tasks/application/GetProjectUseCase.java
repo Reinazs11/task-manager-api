@@ -4,7 +4,7 @@ import com.renan.taskmanager.tasks.domain.Project;
 import com.renan.taskmanager.tasks.domain.ProjectId;
 import com.renan.taskmanager.tasks.domain.ProjectNotFoundException;
 import com.renan.taskmanager.tasks.domain.ProjectRepository;
-import com.renan.taskmanager.users.domain.UserId;
+import com.renan.taskmanager.common.domain.UserId;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 

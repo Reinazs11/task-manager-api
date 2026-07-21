@@ -1,7 +1,7 @@
 package com.renan.taskmanager.tasks.application;
 
 import com.renan.taskmanager.tasks.domain.*;
-import com.renan.taskmanager.users.domain.UserId;
+import com.renan.taskmanager.common.domain.UserId;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;

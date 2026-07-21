@@ -5,7 +5,7 @@ import com.renan.taskmanager.tasks.application.ports.ProjectQueryPort;
 import com.renan.taskmanager.tasks.domain.Project;
 import com.renan.taskmanager.tasks.domain.ProjectId;
 import com.renan.taskmanager.tasks.domain.ProjectRepository;
-import com.renan.taskmanager.users.domain.UserId;
+import com.renan.taskmanager.common.domain.UserId;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
