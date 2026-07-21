@@ -56,8 +56,23 @@ Contexts: `users` (authentication) and `tasks` (projects and tasks).
 ### Minimum coverage: 80% (enforced by JaCoCo, build fails below)
 - **Unit tests**: domain + application services with Mockito (no Spring context).
 - **Integration tests**: repositories and controllers with Testcontainers (real PostgreSQL).
-- **Do NOT use @SpringBootTest for everything** — it's heavy. Prefer `@WebMvcTest` + MockMvc
-  for controllers, `@DataJpaTest` for repositories.
+
+### Test strategy by layer (decided after the Step 7 review)
+- **Domain + application services**: unit tests with Mockito, no Spring context.
+- **Authenticated controllers**: `@SpringBootTest` + Testcontainers. The
+  `JwtAuthenticationFilter` and `SecurityConfig` are part of the contract
+  that matters — mocking the security context with `@WebMvcTest` would hide
+  bugs that only surface with the real filter chain (tampered tokens, missing
+  `Bearer` prefix, refresh-vs-access confusion, etc.). `JwtAuthorizationIT`
+  covers 6 token variants and `ErrorResponseContractIT` asserts the error
+  envelope field-by-field; neither is reproducible with a controller slice.
+- **Public controllers** (no JWT): `@WebMvcTest` + MockMvc is fine — nothing
+  security-related to lose by slicing.
+- **Repositories**: `@DataJpaTest` + Testcontainers.
+
+> **Rationale:** the old rule "Prefer @WebMvcTest for controllers" was
+> aspirational and didn't match what the project actually needed. Documenting
+> the real decision is more honest than a rule the codebase quietly violates.
 
 ### Forbidden (cheating on tests)
 - ❌ `@Disabled` on a broken test (fix it, or delete it with justification).
