@@ -104,7 +104,7 @@ docs: update README with new endpoints
    before creating it — never grow the tracker with duplicates or half-formed
    ideas during a long session. This keeps "accepted limitations" (DECISIONS.md)
    and "planned work" (Issues) cleanly separated.
-5. Filter outputs: never return full `mvn`/`docker` logs. Use `| tail -n` or equivalent.
+6. Filter outputs: never return full `mvn`/`docker` logs. Use `| tail -n` or equivalent.
 
 ## AI-assisted development — guardrails (learned the hard way)
 
