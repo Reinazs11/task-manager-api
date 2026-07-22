@@ -140,6 +140,44 @@ LINE gate runs, so the check reflects both suites. Gate is at LINE ≥80%; not
 pushing to 100% — remaining gaps are defensive error handling not worth
 provoking in honest tests.
 
+### 15. Auth-endpoint rate limiting: in-memory per-IP token bucket (Bucket4j)
+**Status:** Accepted (2026-07) — closes issue #7
+
+A per-source-IP token bucket (Bucket4j `bucket4j-core`) throttles
+`/api/v1/auth/**` (login + refresh) to **10 requests / minute / IP** with a
+shared bucket across both endpoints. Closing the brute-force gap that
+anti-enumeration (decision #6) does not cover: anti-enumeration defeats
+single-shot probing, but not volumetric attacks. BCrypt cost 12 slows each
+guess but does not cap the guess rate.
+
+**Why in-memory and not distributed:** state lives in a `ConcurrentHashMap`
+inside the process. It is not shared across instances and resets on restart.
+For a single-instance portfolio this is the correct trade-off (no Redis
+dependency); for a multi-instance deployment it would under-count and need a
+shared backend. See limitation [1] / issue #11 — if token revocation later
+pulls in Redis, `bucket4j-redis` can back the same `RateLimiter` interface
+without touching the filter.
+
+**Why per-IP and not per-account:** per-account throttling requires knowing
+the account exists, which reintroduces the enumeration surface that decision
+#6 collapses. Per-IP is the standard for login throttling.
+
+**Why login + refresh share a bucket:** both are equally brute-force-sensitive
+auth paths; separate buckets would double an attacker's budget.
+
+**Why a filter that writes the response (not an exception for the advice):**
+the filter runs before the `DispatcherServlet`, so an exception here is not
+caught by `@RestControllerAdvice` — it would surface as a generic 500. The
+filter serializes the same six-field `ErrorResponse` directly, mirroring
+`JsonAuthenticationEntryPoint` for 401, so the contract holds regardless of
+which layer rejects the request.
+
+**Trust on `X-Forwarded-For`:** the resolver trusts the header as-is. A
+spoofed XFF lets an attacker rotate apparent source IPs and dodge the limit.
+Acceptable for the single-instance portfolio; a hardened deployment would
+configure the reverse proxy to overwrite (not append to) XFF, or validate it
+against a trusted proxy chain.
+
 ---
 
 ## Known limitations (accepted trade-offs)
