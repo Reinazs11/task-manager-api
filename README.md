@@ -11,7 +11,7 @@ Java 21 and Spring Boot 3 following Simplified DDD and TDD.
 > Portfolio project demonstrating a production-grade backend: real PostgreSQL
 > (via Testcontainers, no H2 shortcuts), strict architecture enforcement
 > (ArchUnit), mutation testing (PIT), versioned schema migrations (Flyway), and
-> a 96% line-coverage gate that fails the build.
+> an 80% line-coverage gate that fails the build.
 
 ---
 
