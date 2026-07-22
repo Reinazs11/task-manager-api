@@ -18,16 +18,23 @@ Java 21 and Spring Boot 3 following Simplified DDD and TDD.
 ## Highlights
 
 - **Java 21** (records, sealed interfaces, pattern matching) on **Spring Boot 3.3**
-- **Stateless JWT auth** — access token (15 min) + refresh token (7 days), HS256
+- **Stateless JWT auth** — access token (15 min) + refresh token (7 days, rotated),
+  HS256 with `iss`/`aud` enforcement
+- **Token rotation endpoint** `POST /auth/refresh` — trade a refresh for a new pair
+- **Anti-enumeration posture** — login, resource lookups, and refresh all collapse
+  error variants into a single 401/403 so callers cannot enumerate
 - **Simplified DDD** — bounded contexts (`users`, `tasks`) with `domain` /
   `application` / `infrastructure` / `api` layers
 - **Testcontainers** for integration tests against **real PostgreSQL 16** (no H2)
 - **Architecture tests with ArchUnit** enforce layering and cross-context isolation
-- **Mutation testing with PIT** proves the tests actually catch bugs
+- **Mutation testing with PIT** runs continuously (scoped to the domain layer)
 - **Flyway** owns schema migrations; Hibernate runs in `validate` mode everywhere
 - **OpenAPI 3 / Swagger UI** documents every endpoint (disabled in prod)
+- **CORS** env-driven with fail-fast in prod (no silent allow-all)
+- **Actuator health probe** exposed (no auth) for Docker/K8s
 - **Structured logs** with correlation ids and header redaction
-- **JaCoCo coverage gate** at 80% (current: 96.7%)
+- **BCrypt cost 12** (OWASP 2026), single source of truth
+- **JaCoCo coverage gate** at 80% LINE
 
 ---
 
@@ -124,16 +131,20 @@ All routes are prefixed with `/api/v1`.
 |--------|-----------------------------------|------|----------------------------------------------|
 | POST   | `/auth/register`                  | —    | Register a new user                          |
 | POST   | `/auth/login`                     | —    | Exchange credentials for access + refresh JWT |
+| POST   | `/auth/refresh`                   | —    | Rotate tokens: refresh in → new access + refresh out |
 | POST   | `/projects`                       | JWT  | Create a project                             |
 | GET    | `/projects`                       | JWT  | List the caller's projects (paginated)       |
-| GET    | `/projects/{id}`                  | JWT  | Get a project (owner only)                   |
-| DELETE | `/projects/{id}`                  | JWT  | Delete a project (owner only)                |
-| POST   | `/projects/{id}/tasks`            | JWT  | Create a task inside a project               |
+| GET    | `/projects/{id}`                  | JWT  | Get a project (owner or 403)                 |
+| DELETE | `/projects/{id}`                  | JWT  | Delete a project (owner or 403)              |
+| POST   | `/projects/{id}/tasks`            | JWT  | Create a task inside a project (owner or 403)|
 | GET    | `/projects/{id}/tasks`            | JWT  | List tasks (filter by `status`, paginated)   |
-| PATCH  | `/tasks/{id}/status`              | JWT  | Transition a task's status (owner only)      |
+| PATCH  | `/tasks/{id}/status`              | JWT  | Transition a task's status (owner or 403)    |
+| GET    | `/actuator/health`                | —    | Liveness/readiness probe (Docker, K8s)       |
 
 Every error returns a single JSON shape:
 `{ timestamp, status, error, message, path, details }`.
+Authenticated lookups collapse 404 into 403 (anti-enumeration: a caller
+cannot tell "exists but not mine" from "does not exist").
 
 ---
 
@@ -204,10 +215,17 @@ HTML report: `target/pit-reports/index.html`.
 |----------|-----------|
 | Simplified DDD (not full) | Portfolio-grade rigor without the overhead of aggregates-of-aggregates |
 | `ddl-auto=validate` + Flyway | Schema is versioned and reviewed; Hibernate never mutates it |
-| Testcontainers over H2 | Catches dialect-specific bugs (UUID, unique constraints, case sensitivity) |
+| Testcontainers over H2 | Catches dialect-specific bugs (UUID, unique constraints, FK enforcement) |
 | Spring-managed container as `@Bean` | Aligns container lifecycle with the ApplicationContext cache |
 | Centralized error shape | One 6-field JSON contract enforced by `ErrorResponseContractIT` |
-| Stateless JWT (no sessions) | Horizontally scalable; refresh rotation handled by clients |
+| Stateless JWT (no sessions) | Horizontally scalable; `/auth/refresh` rotates without a token store |
+| Anti-enumeration collapse (404 → 403) | A non-owner (or a random id) gets 403 uniformly — no resource existence leak |
+| JWT `iss`/`aud` enforced in parser | Defense-in-depth: tokens from a different issuer/audience are rejected even if the signing key leaked |
+| Token-type check in `JwtService` | `parseAccessToken`/`parseRefreshToken` centralize signature + exp + iss/aud + type in one place |
+| CORS fail-fast in prod | Empty `CORS_ALLOWED_ORIGINS` throws at startup instead of silently allowing any origin |
+| BCrypt cost 12, single bean | OWASP 2026 baseline; `BCryptPasswordHasher` injects the bean instead of `new`-ing one |
+| Actuator: only `/health` exposed | Liveness/readiness for Docker/K8s without leaking env, beans, or heap dumps |
+| PIT scoped to domain in CI | Mutation testing runs continuously where invariants live, ~10s per build |
 | Correlation id in every log line | One id traces a request across filters, controllers, and DB |
 | OpenAPI disabled in prod | Internal docs never leak to the public internet |
 
