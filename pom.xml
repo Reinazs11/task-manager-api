@@ -100,14 +100,21 @@
         </dependency>
 
         <!--
-          Bucket4j: in-memory token-bucket rate limiting for the auth endpoints
-          (see RateLimitFilter). Core only — no Caffeine/Redis backend needed for
-          the single-instance portfolio deployment (decision in DECISIONS.md).
+          Rate limiting for the auth endpoints (see RateLimitFilter + DECISIONS.md #15).
+          - bucket4j-core: token-bucket algorithm.
+          - caffeine: backs the per-IP bucket map with bounded size + TTL eviction,
+            so a spoofed X-Forwarded-For flooding distinct IPs cannot exhaust the
+            heap (the unbounded ConcurrentHashMap it replaced was a DoS vector).
+            Version managed by the Spring Boot BOM.
         -->
         <dependency>
             <groupId>com.bucket4j</groupId>
             <artifactId>bucket4j-core</artifactId>
             <version>${bucket4j.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId>
         </dependency>
 
         <!-- Produtividade -->
