@@ -28,6 +28,7 @@
         <archunit.version>1.3.0</archunit.version>
         <pitest.version>1.16.1</pitest.version>
         <pitest-junit5.version>1.2.1</pitest-junit5.version>
+        <bucket4j.version>8.10.1</bucket4j.version>
     </properties>
 
     <dependencies>
@@ -96,6 +97,17 @@
             <artifactId>jjwt-jackson</artifactId>
             <version>${jjwt.version}</version>
             <scope>runtime</scope>
+        </dependency>
+
+        <!--
+          Bucket4j: in-memory token-bucket rate limiting for the auth endpoints
+          (see RateLimitFilter). Core only — no Caffeine/Redis backend needed for
+          the single-instance portfolio deployment (decision in DECISIONS.md).
+        -->
+        <dependency>
+            <groupId>com.bucket4j</groupId>
+            <artifactId>bucket4j-core</artifactId>
+            <version>${bucket4j.version}</version>
         </dependency>
 
         <!-- Produtividade -->
