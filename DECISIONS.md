@@ -64,7 +64,7 @@ enforced field-by-field by `ErrorResponseContractIT` for 7 status codes
 (400/401/403/404/405/409/500). A 500 never leaks the stack or exception class.
 
 ### 6. Anti-enumeration: collapse 404 into 403 on authenticated lookups
-**Status:** Accepted (`fix/review-findings`, 2026-07)
+**Status:** Accepted (2026-07)
 
 Every authenticated GET/PATCH/DELETE on a project or task checks
 `existsByIdAndOwnerId` FIRST. A non-owner, or a random id, both get
@@ -73,7 +73,7 @@ Every authenticated GET/PATCH/DELETE on a project or task checks
 as login: don't let an attacker enumerate which resource ids exist.
 
 ### 7. Refresh token rotation: stateless, no server-side blacklist
-**Status:** Accepted (`fix/review-findings`, 2026-07)
+**Status:** Accepted (2026-07)
 
 `POST /auth/refresh` trades a refresh token for a new access+refresh pair.
 Both the old and the new refresh stay valid until each expires — there is no
@@ -82,7 +82,7 @@ trade-off: the API stays horizontally scalable and stateless. See limitation
 [1] below for the path to close it.
 
 ### 8. JWT `iss`/`aud` enforced; type check centralized in `JwtService`
-**Status:** Accepted (`fix/review-findings`, 2026-07)
+**Status:** Accepted (2026-07)
 
 The builder emits `iss`/`aud`; the parser calls `requireIssuer`/`requireAudience`.
 Defense-in-depth: if another service ever shares this signing key, its tokens
@@ -92,7 +92,7 @@ and tests all go through one chokepoint. Configured via `app.jwt.issuer` /
 `app.jwt.audience` (with sane defaults).
 
 ### 9. CORS: env-driven, fail-fast in prod
-**Status:** Accepted (`fix/review-findings`, 2026-07)
+**Status:** Accepted (2026-07)
 
 `app.cors.allowed-origins` (CSV) drives a `CorsConfigurationSource` bean. Dev
 defaults to `http://localhost:3000`; the prod profile ships the env var EMPTY
@@ -101,7 +101,7 @@ allowing any origin. `allowCredentials=true` (required for explicit origins +
 Authorization header).
 
 ### 10. BCrypt cost 12, single `PasswordEncoder` bean
-**Status:** Accepted (`fix/review-findings`, 2026-07)
+**Status:** Accepted (2026-07)
 
 OWASP 2026 baseline. `BCryptPasswordHasher` injects the bean instead of
 `new BCryptPasswordEncoder(...)` — single source of truth, no drift between
@@ -115,7 +115,7 @@ two independent encoders.
 internet.
 
 ### 12. Actuator: only `/actuator/health` exposed
-**Status:** Accepted (`fix/review-findings`, 2026-07)
+**Status:** Accepted (2026-07)
 
 `management.endpoints.web.exposure.include=health` and
 `endpoint.health.show-details=never`. Liveness/readiness for Docker/K8s without
@@ -123,7 +123,7 @@ leaking env, beans, heap dumps, or component details. The endpoint is public
 (no JWT) so probes work.
 
 ### 13. PIT mutation testing scoped to the domain layer in CI
-**Status:** Accepted (`fix/review-findings`, 2026-07)
+**Status:** Accepted (2026-07)
 
 CI runs scoped PIT against the domain packages on every push (~10s, 90
 mutations, ~80% killed). The domain is where invariants live and earns the
