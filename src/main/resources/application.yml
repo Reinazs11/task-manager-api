@@ -38,6 +38,18 @@ spring:
 server:
   port: ${SERVER_PORT:8080}
 
+# Actuator: apenas o health endpoint exposto (readiness/liveness para Docker/K8s).
+# Nunca expor /env, /beans, /heapdump etc. em qualquer perfil — vazamento de config.
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      # Não expor detalhes (componentes, discos, etc.) sem auth — só o status UP/DOWN.
+      show-details: never
+
 # Documentação OpenAPI
 springdoc:
   swagger-ui:

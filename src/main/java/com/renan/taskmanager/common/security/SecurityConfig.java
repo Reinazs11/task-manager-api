@@ -73,6 +73,8 @@ public class SecurityConfig {
                 // Public vs protected routes
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/v1/auth/**").permitAll()
+                        // Health probe for Docker/K8s — must not require JWT.
+                        .requestMatchers("/actuator/health").permitAll()
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
                         .anyRequest().authenticated())
                 // Register our JWT filter BEFORE the default form-login filter
