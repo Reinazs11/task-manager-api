@@ -10,7 +10,9 @@ of GitHub reading.
 - Spring Boot 3.x
 - Spring Web, Spring Security, Spring Data JPA
 - PostgreSQL 16 (production and tests)
-- JWT via jjwt (access 15min + refresh 7days)
+- JWT via jjwt (access 15min + refresh 7days, both rotated via `/auth/refresh`;
+  `iss`/`aud` enforced in the parser; type check centralized in
+  `JwtService.parseAccessToken`/`parseRefreshToken`)
 - Lombok, MapStruct
 - Maven (wrapper `./mvnw`)
 - Docker + docker-compose
@@ -105,10 +107,54 @@ docs: update README with new endpoints
 4. Before destructive operations (delete file, overwrite, force push):
    explain and wait for confirmation.
 5. Filter outputs: never return full `mvn`/`docker` logs. Use `| tail -n` or equivalent.
-6. **When completing a step:** update `IMPLEMENTATION_PLAN.md` marking the step as
-   `✅ DONE`, fill the acceptance criteria checkboxes with `[x]`, and add the commit
-   hash in the progress table. This keeps the roadmap synchronized with the real
-   project state.
+
+## AI-assisted development — guardrails (learned the hard way)
+
+These rules exist because every defect found in the `fix/review-findings` branch
+traced back to one of four AI failure modes. They are non-negotiable when an
+agent is writing code in this repo.
+
+### 1. Doc-vs-code drift is the #1 failure mode — verify before committing
+Long sessions lose the context of what was said earlier. The most common
+defect is a comment, Javadoc, README claim, or `ci.yml` comment that describes
+behavior that was changed (or never existed). Before finishing any task:
+- `grep` the codebase for names/terms introduced by the change. If a comment
+  says "X" and the code now does "Y", fix one of them.
+- Treat every comment as a **load-bearing claim** until proven otherwise.
+  Examples caught in review: "ddl-auto=update in dev" (dev was `validate`),
+  "delegates internally" (didn't), "future work" (shipped it), "PIT proves"
+  (CI never ran PIT).
+- When you delete or rename a feature, search for mentions in README, AGENTS.md,
+  `*.yml` comments, Javadoc, and OpenAPI `@Operation` descriptions.
+
+### 2. Ship the whole feature, or document why the half is shippable
+The refresh-token bug: the token was minted but no endpoint consumed it, and a
+Javadoc tagged the gap as "future work". That's worse than not advertising the
+feature — it advertises what doesn't work.
+- An endpoint that issues a token/credential MUST have a documented consumer
+  endpoint in the same PR, OR be explicitly disabled (don't mint it).
+- If you must ship a partial capability, prefix the user-facing description
+  with "Not yet implemented:" so reviewers see it instantly. Never bury the
+  gap in a Javadoc.
+
+### 3. Apply a decision everywhere, or the inconsistency will out you
+`DeleteProjectUseCase` collapsed 404→403 for anti-enumeration, but `Get` and
+`Create` distinguished them. A senior reviewer spots this in seconds and reads
+it as rushed review.
+- When you make a security/contract decision, grep for analogous code paths
+  and apply it to ALL of them in the same commit.
+- Anti-enumeration, error-shape, status-code semantics, and authorization
+  checks belong on every endpoint of the same kind — no exceptions per file.
+
+### 4. Re-verify every review finding before acting on it
+3 of ~10 findings in the first automated review were false positives (a Javadoc
+"lying" that wasn't lying, a "dead" method with a real caller, "hardcoded
+timing" that was just a format assertion). Implementing a fix for a non-bug
+either deletes working code or masks the real bug.
+- For every "X is wrong" claim, run the grep/read that proves it before writing
+  the fix. Cite `file:line` in the plan.
+- If the grep contradicts the claim, say so explicitly — don't silently adapt.
+  Document the false positive; the next reviewer benefits.
 
 ## Pending design decisions (document here when decided)
 - [x] **Logging strategy: SLF4J + Logback native, no extra dependencies**
@@ -132,6 +178,37 @@ docs: update README with new endpoints
   captures the schema matching the JPA entities; `application.yml` sets
   `ddl-auto=validate` in all profiles so Flyway owns the schema end-to-end.
   Changes go in `V2__`, `V3__`, etc. — never edit `V1` after it's been applied.
+- [x] **Anti-enumeration: collapse 404 into 403 on authenticated lookups**
+  (decided in `fix/review-findings`). Every authenticated GET/PATCH/DELETE on
+  a project or task checks `existsByIdAndOwnerId` FIRST. A non-owner, or a
+  random id, both get `AccessDeniedException` (→ 403) — never 404. This is
+  uniform across `GetProject`, `DeleteProject`, `CreateTask`, `ListTasks`,
+  `UpdateTaskStatus`. Same rationale as login: don't let an attacker enumerate
+  which resource ids exist.
+- [x] **Refresh token rotation: stateless, no server-side blacklist**
+  (decided in `fix/review-findings`). `POST /auth/refresh` trades a refresh
+  token for a new access+refresh pair. Both old and new refresh stay valid
+  until each expires — there is no token store, so one-time-use refresh is not
+  possible without Redis/DB. Accepted trade-off: the API stays horizontally
+  scalable. If true revocation becomes a requirement, the next step is a
+  `refresh_token_jti` table or Redis set.
+- [x] **JWT `iss`/`aud` enforced; type check centralized in `JwtService`**
+  (decided in `fix/review-findings`). Builder emits `iss`/`aud`; parser calls
+  `requireIssuer`/`requireAudience`. Defense-in-depth: if another service ever
+  shares this signing key, its tokens are rejected. Token-type validation
+  (access vs refresh) moved out of the filter into `JwtService.parseAccessToken`
+  / `parseRefreshToken` so filter, use cases, and tests all go through one
+  chokepoint. Defaults via `app.jwt.issuer`/`app.jwt.audience`.
+- [x] **CORS: env-driven, fail-fast in prod**
+  (decided in `fix/review-findings`). `app.cors.allowed-origins` (CSV) drives
+  a `CorsConfigurationSource` bean. Dev profile defaults to
+  `http://localhost:3000`; prod profile ships the env var EMPTY so the bean
+  throws `IllegalStateException` at startup rather than silently allowing any
+  origin. `allowCredentials=true` (required for explicit origins + Authorization).
+- [x] **BCrypt cost 12, single PasswordEncoder bean**
+  (decided in `fix/review-findings`). OWASP 2026 baseline. `BCryptPasswordHasher`
+  injects the bean instead of `new BCryptPasswordEncoder(...)` — single source
+  of truth, no drift between two encoders.
 
 ## Modern stack — quick reference
 
@@ -157,8 +234,10 @@ Spins up real Docker containers (PostgreSQL) during tests and tears them down af
 in real PostgreSQL. Clients see this and know you tested for real.
 
 ### Mutation testing (PIT) — current state
-Run scoped, never on the whole project: `mvn -P pit test-compile
-org.pitest:pitest-maven:mutationCoverage -DtargetClasses=<pkg> -DtargetTests=<pkg>`.
+CI runs scoped PIT against the domain layer on every push (~10s, 90 mutations,
+~80% killed). Local whole-project runs still available:
+`mvn -P pit test-compile org.pitest:pitest-maven:mutationCoverage
+-DtargetClasses=<pkg> -DtargetTests=<pkg>`.
 Profile `pit` needs `timeoutConstant=30000` (Testcontainers tests exceed the 8s
 default). Recent scores: `common.api.GlobalExceptionHandler` 95%, domain layer
 82%. Remaining survivors are **justified false positives** (do not chase):
