@@ -229,9 +229,12 @@ HTML report: `target/pit-reports/index.html`.
 | Correlation id in every log line | One id traces a request across filters, controllers, and DB |
 | OpenAPI disabled in prod | Internal docs never leak to the public internet |
 
-See `AGENTS.md` for the full design-decision log and contribution rules.
-The complete decision register — including accepted limitations and
-trade-offs — lives in [`DECISIONS.md`](DECISIONS.md).
+`AGENTS.md` holds contribution rules and AI-development guardrails.
+[`DECISIONS.md`](DECISIONS.md) is the decision log and accepted-limitations
+register (what is consciously out of scope). Scheduled future work lives
+in [GitHub Issues](https://github.com/Reinazs11/task-manager-api/issues)
+— the line between "accepted limitation" and "work we will do" is
+documented there.
 
 ---
 
