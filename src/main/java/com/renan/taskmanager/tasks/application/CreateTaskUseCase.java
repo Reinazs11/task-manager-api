@@ -11,7 +11,10 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * Application use case: add a task to an existing project.
  *
- * <p>Authorization: only the project owner can add tasks.</p>
+ * <p><b>Authorization (anti-enumeration):</b> ownership is checked before
+ * the project is fetched. A caller that is not the owner — or that supplies
+ * a project id that does not exist — both receive {@link AccessDeniedException}
+ * (→ HTTP 403). See {@code GetProjectUseCase} for the rationale.</p>
  */
 @Service
 public class CreateTaskUseCase {
@@ -26,21 +29,20 @@ public class CreateTaskUseCase {
 
     @Transactional
     public Task execute(ProjectId projectId, UserId requesterId, String title, Priority priority) {
-        Project project = projectRepository.findById(projectId)
-                .orElseThrow(() -> new ProjectNotFoundException(projectId.value()));
-
-        if (!project.getOwnerId().equals(requesterId)) {
-            throw new AccessDeniedException("Cannot add tasks to a project you do not own");
+        if (!projectRepository.existsByIdAndOwnerId(projectId, requesterId)) {
+            throw new AccessDeniedException("Cannot add tasks to this project");
         }
 
-        Project.TaskAdded result = project.addTask(new TaskTitle(title));
-        Task taskToPersist = result.task();
+        Project project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new AccessDeniedException("Cannot add tasks to this project"));
+
+        Task task = project.addTask(new TaskTitle(title));
 
         // Override priority if explicitly provided; default comes from Task.create
         if (priority != null) {
-            taskToPersist.changePriority(priority);
+            task.changePriority(priority);
         }
 
-        return taskRepository.save(taskToPersist);
+        return taskRepository.save(task);
     }
 }

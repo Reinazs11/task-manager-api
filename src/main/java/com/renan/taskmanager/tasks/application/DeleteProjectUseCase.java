@@ -1,7 +1,6 @@
 package com.renan.taskmanager.tasks.application;
 
 import com.renan.taskmanager.tasks.domain.ProjectId;
-import com.renan.taskmanager.tasks.domain.ProjectNotFoundException;
 import com.renan.taskmanager.tasks.domain.ProjectRepository;
 import com.renan.taskmanager.common.domain.UserId;
 import org.springframework.security.access.AccessDeniedException;

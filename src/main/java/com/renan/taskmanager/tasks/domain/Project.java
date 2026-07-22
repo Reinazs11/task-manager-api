@@ -72,17 +72,17 @@ public class Project {
     /**
      * Adds a new task to this project. The task inherits the project's id and owner.
      *
-     * @return a {@link TaskAdded} record carrying the created task
+     * @return the newly created {@link Task}
      * @throws IllegalArgumentException if the title is null or invalid
      */
-    public TaskAdded addTask(TaskTitle title) {
+    public Task addTask(TaskTitle title) {
         if (title == null) {
             throw new IllegalArgumentException("Title cannot be null");
         }
         Task task = Task.create(id, ownerId, title);
         tasks.add(task);
         this.updatedAt = Instant.now();
-        return new TaskAdded(task);
+        return task;
     }
 
     /**
@@ -111,16 +111,5 @@ public class Project {
 
     public Instant getUpdatedAt() {
         return updatedAt;
-    }
-
-    /**
-     * Return type of {@link #addTask}: carries the newly created task.
-     * Using a named record (instead of bare Task) leaves room to extend the
-     * result with metadata (events, flags) without breaking callers.
-     */
-    public record TaskAdded(Task task) {
-        public TaskAdded {
-            java.util.Objects.requireNonNull(task, "task cannot be null");
-        }
     }
 }

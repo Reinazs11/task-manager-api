@@ -38,6 +38,18 @@ spring:
 server:
   port: ${SERVER_PORT:8080}
 
+# Actuator: apenas o health endpoint exposto (readiness/liveness para Docker/K8s).
+# Nunca expor /env, /beans, /heapdump etc. em qualquer perfil — vazamento de config.
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      # Não expor detalhes (componentes, discos, etc.) sem auth — só o status UP/DOWN.
+      show-details: never
+
 # Documentação OpenAPI
 springdoc:
   swagger-ui:
@@ -53,8 +65,18 @@ app:
     secret: ${JWT_SECRET:dGhpcy1pcy1hLWRldmVsb3BtZW50LWp3dC1zZWNyZXQta2V5LWRvLW5vdC11c2UtaW4tcHJvZHVjdGlvbi1wbGVhc2U=}
     access-token-expiration-ms: 900000      # 15 minutos
     refresh-token-expiration-ms: 604800000  # 7 dias
+    # iss/aud claims: defense-in-depth. Even in a single-service API, if
+    # another service ever shares this signing key its tokens would be valid
+    # here unless the audience is checked.
+    issuer: ${JWT_ISSUER:task-manager-api}
+    audience: ${JWT_AUDIENCE:task-manager-api-users}
   api:
     version: ${APP_VERSION:0.1.0}
+  cors:
+    # Origins allowed to make credentialed (cookie/Auth header) browser requests.
+    # Dev default covers the typical Vite/React dev server. In prod, override
+    # via CORS_ALLOWED_ORIGINS (see application-prod.yml).
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
 
 logging:
   level:

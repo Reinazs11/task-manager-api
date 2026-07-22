@@ -39,8 +39,13 @@ public enum TaskStatus {
 
     /**
      * Returns true if this status can transition to the target status.
+     *
+     * <p>Package-private: the only production caller is {@link #assertTransitionTo},
+     * which lives in this same compilation unit. Tests in the same package can
+     * still call it; callers outside the domain package should go through
+     * {@code Task.transitionTo} instead of poking the transition graph directly.</p>
      */
-    public boolean canTransitionTo(TaskStatus target) {
+    boolean canTransitionTo(TaskStatus target) {
         Set<TaskStatus> allowed = ALLOWED.get(this);
         return allowed != null && allowed.contains(target);
     }

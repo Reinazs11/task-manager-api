@@ -10,7 +10,9 @@ of GitHub reading.
 - Spring Boot 3.x
 - Spring Web, Spring Security, Spring Data JPA
 - PostgreSQL 16 (production and tests)
-- JWT via jjwt (access 15min + refresh 7days)
+- JWT via jjwt (access 15min + refresh 7days, both rotated via `/auth/refresh`;
+  `iss`/`aud` enforced in the parser; type check centralized in
+  `JwtService.parseAccessToken`/`parseRefreshToken`)
 - Lombok, MapStruct
 - Maven (wrapper `./mvnw`)
 - Docker + docker-compose
@@ -57,22 +59,13 @@ Contexts: `users` (authentication) and `tasks` (projects and tasks).
 - **Unit tests**: domain + application services with Mockito (no Spring context).
 - **Integration tests**: repositories and controllers with Testcontainers (real PostgreSQL).
 
-### Test strategy by layer (decided after the Step 7 review)
-- **Domain + application services**: unit tests with Mockito, no Spring context.
-- **Authenticated controllers**: `@SpringBootTest` + Testcontainers. The
-  `JwtAuthenticationFilter` and `SecurityConfig` are part of the contract
-  that matters — mocking the security context with `@WebMvcTest` would hide
-  bugs that only surface with the real filter chain (tampered tokens, missing
-  `Bearer` prefix, refresh-vs-access confusion, etc.). `JwtAuthorizationIT`
-  covers 6 token variants and `ErrorResponseContractIT` asserts the error
-  envelope field-by-field; neither is reproducible with a controller slice.
-- **Public controllers** (no JWT): `@WebMvcTest` + MockMvc is fine — nothing
-  security-related to lose by slicing.
-- **Repositories**: `@DataJpaTest` + Testcontainers.
-
-> **Rationale:** the old rule "Prefer @WebMvcTest for controllers" was
-> aspirational and didn't match what the project actually needed. Documenting
-> the real decision is more honest than a rule the codebase quietly violates.
+### Test strategy by layer
+The full strategy and its rationale live in **`DECISIONS.md` #4** (single source
+of truth). Summary: domain + application services use Mockito (no Spring);
+authenticated controllers use `@SpringBootTest` + Testcontainers because the
+`JwtAuthenticationFilter`/`SecurityConfig` chain IS the contract that matters;
+public controllers use `@WebMvcTest`; repositories use `@DataJpaTest` + Testcontainers.
+Do not duplicate the rationale here — see DECISIONS.md #4.
 
 ### Forbidden (cheating on tests)
 - ❌ `@Disabled` on a broken test (fix it, or delete it with justification).
@@ -105,33 +98,65 @@ docs: update README with new endpoints
 4. Before destructive operations (delete file, overwrite, force push):
    explain and wait for confirmation.
 5. Filter outputs: never return full `mvn`/`docker` logs. Use `| tail -n` or equivalent.
-6. **When completing a step:** update `IMPLEMENTATION_PLAN.md` marking the step as
-   `✅ DONE`, fill the acceptance criteria checkboxes with `[x]`, and add the commit
-   hash in the progress table. This keeps the roadmap synchronized with the real
-   project state.
 
-## Pending design decisions (document here when decided)
-- [x] **Logging strategy: SLF4J + Logback native, no extra dependencies**
-  (decided in Step 6c). Rationale: professional-grade observability without
-  pulling in Logstash encoders or Micrometer for a portfolio project. Concrete
-  pieces: (1) `CorrelationIdFilter` puts an `X-Request-Id` in the MDC so every
-  log line carries it; (2) `SanitizingRequestLoggingFilter` emits one INFO line
-  per request and redacts `Authorization`/`Cookie` headers; (3)
-  `logback-spring.xml` sets profile-aware levels (dev/test/prod). Body logging
-  is gated behind TRACE + a sensitive-key heuristic and is off by default.
-- [x] **API versioning: `/api/v1/...` prefix on all endpoints** (decided: path-based)
-- [x] **OpenAPI in prod: disabled.** `application-prod.yml` sets
-  `springdoc.swagger-ui.enabled=false` and `springdoc.api-docs.enabled=false`.
-  Internal docs must not leak to production.
-- [x] **Schema migration strategy: Flyway 10 + SQL versioned files**
-  (decided in Step 7b). Rationale: Flyway uses plain SQL (more readable than
-  Liquibase XML/YAML for a small, stable schema), has massive adoption in the
-  Spring ecosystem, and is the idiom a reviewer expects. Concrete pieces:
-  `flyway-core` + `flyway-database-postgresql` (Flyway 10 splits per-DB support
-  into separate modules); `src/main/resources/db/migration/V1__init_schema.sql`
-  captures the schema matching the JPA entities; `application.yml` sets
-  `ddl-auto=validate` in all profiles so Flyway owns the schema end-to-end.
-  Changes go in `V2__`, `V3__`, etc. — never edit `V1` after it's been applied.
+## AI-assisted development — guardrails (learned the hard way)
+
+These rules exist because every defect found during the pre-release review
+traced back to one of four AI failure modes. They are non-negotiable when an
+agent is writing code in this repo.
+
+### 1. Doc-vs-code drift is the #1 failure mode — verify before committing
+Long sessions lose the context of what was said earlier. The most common
+defect is a comment, Javadoc, README claim, or `ci.yml` comment that describes
+behavior that was changed (or never existed). Before finishing any task:
+- `grep` the codebase for names/terms introduced by the change. If a comment
+  says "X" and the code now does "Y", fix one of them.
+- Treat every comment as a **load-bearing claim** until proven otherwise.
+  Examples caught in review: "ddl-auto=update in dev" (dev was `validate`),
+  "delegates internally" (didn't), "future work" (shipped it), "PIT proves"
+  (CI never ran PIT).
+- When you delete or rename a feature, search for mentions in README, AGENTS.md,
+  `*.yml` comments, Javadoc, and OpenAPI `@Operation` descriptions.
+
+### 2. Ship the whole feature, or document why the half is shippable
+The refresh-token bug: the token was minted but no endpoint consumed it, and a
+Javadoc tagged the gap as "future work". That's worse than not advertising the
+feature — it advertises what doesn't work.
+- An endpoint that issues a token/credential MUST have a documented consumer
+  endpoint in the same PR, OR be explicitly disabled (don't mint it).
+- If you must ship a partial capability, prefix the user-facing description
+  with "Not yet implemented:" so reviewers see it instantly. Never bury the
+  gap in a Javadoc.
+
+### 3. Apply a decision everywhere, or the inconsistency will out you
+`DeleteProjectUseCase` collapsed 404→403 for anti-enumeration, but `Get` and
+`Create` distinguished them. A senior reviewer spots this in seconds and reads
+it as rushed review.
+- When you make a security/contract decision, grep for analogous code paths
+  and apply it to ALL of them in the same commit.
+- Anti-enumeration, error-shape, status-code semantics, and authorization
+  checks belong on every endpoint of the same kind — no exceptions per file.
+
+### 4. Re-verify every review finding before acting on it
+3 of ~10 findings in the first automated review were false positives (a Javadoc
+"lying" that wasn't lying, a "dead" method with a real caller, "hardcoded
+timing" that was just a format assertion). Implementing a fix for a non-bug
+either deletes working code or masks the real bug.
+- For every "X is wrong" claim, run the grep/read that proves it before writing
+  the fix. Cite `file:line` in the plan.
+- If the grep contradicts the claim, say so explicitly — don't silently adapt.
+  Document the false positive; the next reviewer benefits.
+
+## Engineering decisions and known limitations
+
+All design decisions, accepted trade-offs, and known limitations live in
+**`DECISIONS.md`** (project root). That is the single source of truth for
+"why we chose X" and "what we consciously do NOT do".
+
+When a new decision is made or a limitation accepted during agent work:
+- Add it to `DECISIONS.md` under the appropriate section.
+- Do NOT duplicate the rationale here — `AGENTS.md` is for agent rules and
+  project conventions, not for decision history.
 
 ## Modern stack — quick reference
 
@@ -157,11 +182,14 @@ Spins up real Docker containers (PostgreSQL) during tests and tears them down af
 in real PostgreSQL. Clients see this and know you tested for real.
 
 ### Mutation testing (PIT) — current state
-Run scoped, never on the whole project: `mvn -P pit test-compile
-org.pitest:pitest-maven:mutationCoverage -DtargetClasses=<pkg> -DtargetTests=<pkg>`.
+CI runs scoped PIT against the domain layer on every push (~10s, 90 mutations,
+~80% killed). Local whole-project runs still available:
+`mvn -P pit test-compile org.pitest:pitest-maven:mutationCoverage
+-DtargetClasses=<pkg> -DtargetTests=<pkg>`.
 Profile `pit` needs `timeoutConstant=30000` (Testcontainers tests exceed the 8s
-default). Recent scores: `common.api.GlobalExceptionHandler` 95%, domain layer
-82%. Remaining survivors are **justified false positives** (do not chase):
+default). CI-scoped score on the domain layer: ~80% killed (consistent with
+DECISIONS.md #13). Other layers are mutation-testable on demand locally.
+Remaining survivors are **justified false positives** (do not chase):
 - `hashCode()` returning 0 — no observable contract without a HashMap.
 - `toString()` returning "" — debug-only, not asserted.
 - `equals()` on `User`/`Task` entities — identity-based, partially covered by

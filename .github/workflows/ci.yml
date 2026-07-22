@@ -23,6 +23,11 @@ jobs:
   build-and-test:
     name: Build, test and check coverage
     runs-on: ubuntu-latest
+    # dorny/test-reporter needs write access to publish check runs.
+    permissions:
+      checks: write
+      # Pull request payloads are read-only by default in forked PRs; keep contents read.
+      contents: read
 
     steps:
       - name: Check out source
@@ -47,6 +52,33 @@ jobs:
         # of what's installed on the runner.
         run: ./mvnw -B -ntp clean verify
 
+      - name: Publish test results
+        # Renders each test as a check-run annotation on the PR UI. Reads both
+        # Surefire (unit) and Failsafe (integration) XML reports. Runs on success
+        # AND failure so a red build still shows which tests failed inline.
+        if: always()
+        uses: dorny/test-reporter@v1
+        with:
+          name: Test results
+          path: target/(surefire|failsafe)-reports/TEST-*.xml
+          reporter: java-junit
+          fail-on-error: false
+
+      - name: Run scoped PIT mutation testing (domain layer)
+        # Mutation testing verifies the tests actually catch bugs by injecting
+        # small faults into bytecode. We scope it to the domain layer (~1 min)
+        # — running it across the whole project takes ~10 min for little added
+        # value at this size. The domain is where invariants live, so it earns
+        # the continuous check. Other layers can be tested on demand via
+        # `-DtargetClasses=... -DtargetTests=...`.
+        env:
+          TESTCONTAINERS_RYUK_DISABLED: 'true'
+        run: >
+          ./mvnw -B -ntp -P pit test-compile
+          org.pitest:pitest-maven:mutationCoverage
+          -DtargetClasses=com.renan.taskmanager.tasks.domain.*
+          -DtargetTests=com.renan.taskmanager.tasks.domain.*,com.renan.taskmanager.users.domain.*,com.renan.taskmanager.common.domain.*
+
       - name: Upload JaCoCo coverage report
         # Always upload, even on failure — a failing build is exactly when you
         # most want to look at what the tests did.
@@ -57,13 +89,11 @@ jobs:
           path: target/site/jacoco/
           retention-days: 7
 
-      - name: Upload PIT mutation report (when present)
-        # PIT only runs on the `pit` profile, which CI does not invoke by
-        # default. This step is a no-op in normal runs; it kicks in only if
-        # someone triggers the profile manually via workflow_dispatch.
-        if: always() && hashFiles('target/pit-reports/**') != ''
+      - name: Upload PIT mutation report
+        # Produced by the scoped PIT step above.
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: pit-report
+          name: pit-report-domain
           path: target/pit-reports/
           retention-days: 7

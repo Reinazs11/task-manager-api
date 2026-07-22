@@ -26,8 +26,9 @@ import java.util.List;
  *   <li>Extract {@code Authorization: Bearer <token>} header.</li>
  *   <li>If absent or malformed: continue the chain unauthenticated
  *       (let Spring Security deny the route later if it requires auth).</li>
- *   <li>If present: validate signature + expiration, extract claims,
- *       and set an authenticated principal in the context.</li>
+ *   <li>If present: validate signature + expiration + iss/aud + type=access
+ *       (all centralized in {@link JwtService#parseAccessToken}), and set an
+ *       authenticated principal in the context.</li>
  * </ol>
  *
  * <p><b>Why OncePerRequestFilter?</b>
@@ -68,16 +69,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String token = header.substring(BEARER_PREFIX.length());
 
         try {
-            Claims claims = jwtService.parseAndValidate(token);
-            String tokenType = jwtService.extractTokenType(claims);
-
-            // Only access tokens grant API access. Refresh tokens are for
-            // minting new access tokens, not for direct API calls.
-            if (!JwtService.TYPE_ACCESS.equals(tokenType)) {
-                log.debug("Rejected non-access token (type={})", tokenType);
-                chain.doFilter(request, response);
-                return;
-            }
+            // parseAccessToken centralizes signature + exp + iss/aud + type=access.
+            // Only access tokens grant API access; refresh tokens are for the
+            // /auth/refresh endpoint, not for direct API calls.
+            Claims claims = jwtService.parseAccessToken(token);
 
             // Build the authenticated principal. Spring stores it as a String
             // subject (user id) and grants a default "USER" role for now.
@@ -90,7 +85,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             SecurityContextHolder.getContext().setAuthentication(auth);
 
         } catch (JwtException e) {
-            // Invalid/expired/tampered token: leave context unauthenticated.
+            // Invalid/expired/tampered/wrong-type token: leave context unauthenticated.
             // Protected routes will return 403. Logging at debug to avoid noise.
             log.debug("Invalid JWT rejected: {}", e.getMessage());
         }

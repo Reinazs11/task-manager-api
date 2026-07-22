@@ -2,7 +2,7 @@ package com.renan.taskmanager.users.infrastructure;
 
 import com.renan.taskmanager.users.domain.Password;
 import com.renan.taskmanager.users.domain.PasswordHasher;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
 /**
@@ -13,20 +13,24 @@ import org.springframework.stereotype.Component;
  * - Salt is built into the hash (no separate column needed)
  * - Industry standard, well-audited, available in Spring Security</p>
  *
- * <p><b>Cost factor (10):</b> balances security and performance. Each increase
- * doubles compute time. 10 is the library default and a reasonable choice for
- * most apps in 2026. For high-security contexts, consider 12+.</p>
+ * <p><b>Single source of truth for the cost factor:</b>
+ * The {@link PasswordEncoder} bean is defined exactly once in
+ * {@code SecurityConfig} and injected here. Previously this class created its
+ * own {@code BCryptPasswordEncoder} with a hardcoded cost, which meant two
+ * encoders could drift apart if one was changed and the other was not. Now
+ * the cost lives in one place ({@code SecurityConfig.passwordEncoder}).</p>
  *
- * <p>The {@link BCryptPasswordEncoder} is created once per instance (not per
- * call) to avoid repeated reflection cost.</p>
+ * <p><b>Cost 12:</b> aligns with OWASP 2026 recommendations. Each cost point
+ * doubles compute time — 12 is the floor for new deployments, with headroom
+ * to raise as hardware improves.</p>
  */
 @Component
 public class BCryptPasswordHasher implements PasswordHasher {
 
-    private final BCryptPasswordEncoder encoder;
+    private final PasswordEncoder encoder;
 
-    public BCryptPasswordHasher() {
-        this.encoder = new BCryptPasswordEncoder(10);
+    public BCryptPasswordHasher(PasswordEncoder encoder) {
+        this.encoder = encoder;
     }
 
     @Override

@@ -83,13 +83,12 @@ public class ProjectController {
     }
 
     @GetMapping("/{id}")
-    @Operation(summary = "Get a single project by id", description = "Returns the project if the requester owns it; 403 otherwise.")
+    @Operation(summary = "Get a single project by id",
+            description = "Returns the project if the requester owns it. A non-owner or a non-existent id both return 403 (anti-enumeration: the caller cannot distinguish the two).")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Project found",
                     content = @Content(schema = @Schema(implementation = ProjectResponse.class))),
-            @ApiResponse(responseCode = "403", description = "Not the owner",
-                    content = @Content(schema = @Schema(implementation = com.renan.taskmanager.common.api.ErrorResponse.class))),
-            @ApiResponse(responseCode = "404", description = "No such project",
+            @ApiResponse(responseCode = "403", description = "Not the owner, or no such project",
                     content = @Content(schema = @Schema(implementation = com.renan.taskmanager.common.api.ErrorResponse.class)))
     })
     public ResponseEntity<ProjectResponse> get(

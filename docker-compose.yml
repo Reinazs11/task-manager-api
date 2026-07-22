@@ -47,6 +47,14 @@ services:
       JWT_SECRET: ${JWT_SECRET:-dGhpcy1pcy1hLWRldmVsb3BtZW50LWp3dC1zZWNyZXQta2V5LWRvLW5vdC11c2UtaW4tcHJvZHVjdGlvbi1wbGVhc2U=}
     ports:
       - "8080:8080"
+    healthcheck:
+      # Health probe do Actuator: retorna 200 quando o app responde e o BD está UP.
+      # Mesma origem de verdade que o /actuator/health expõe — sem auth (ver SecurityConfig).
+      test: ["CMD", "wget", "--spider", "--quiet", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     networks:
       - taskmanager-net
 

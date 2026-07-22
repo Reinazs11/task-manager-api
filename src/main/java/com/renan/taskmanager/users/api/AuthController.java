@@ -1,6 +1,7 @@
 package com.renan.taskmanager.users.api;
 
 import com.renan.taskmanager.users.application.LoginUseCase;
+import com.renan.taskmanager.users.application.RefreshTokenUseCase;
 import com.renan.taskmanager.users.application.RegisterUserUseCase;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -33,10 +34,14 @@ public class AuthController {
 
     private final RegisterUserUseCase registerUserUseCase;
     private final LoginUseCase loginUseCase;
+    private final RefreshTokenUseCase refreshTokenUseCase;
 
-    public AuthController(RegisterUserUseCase registerUserUseCase, LoginUseCase loginUseCase) {
+    public AuthController(RegisterUserUseCase registerUserUseCase,
+                          LoginUseCase loginUseCase,
+                          RefreshTokenUseCase refreshTokenUseCase) {
         this.registerUserUseCase = registerUserUseCase;
         this.loginUseCase = loginUseCase;
+        this.refreshTokenUseCase = refreshTokenUseCase;
     }
 
     /**
@@ -93,6 +98,36 @@ public class AuthController {
     })
     public ResponseEntity<TokenResponse> login(@Valid @RequestBody LoginRequest request) {
         TokenResponse response = loginUseCase.execute(request.email(), request.password());
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * POST /api/v1/auth/refresh
+     *
+     * <p>Exchanges a valid refresh token for a new access + refresh pair
+     * (token rotation). Returns 200 on success, 401 on any token failure
+     * (wrong type, tampered, expired), 400 on a missing/blank field.</p>
+     */
+    @PostMapping("/refresh")
+    @Operation(summary = "Exchange a refresh token for a new token pair",
+            description = "Validates the supplied refresh token and returns a fresh access "
+                    + "token (15 min) and a fresh refresh token (7 days). The new tokens have "
+                    + "new jti claims, so callers can detect rotation. Note: stateless design — "
+                    + "the old refresh token remains valid until its own expiry; one-time-use "
+                    + "refresh would require a server-side token store.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200",
+                    description = "Token pair rotated",
+                    content = @Content(schema = @Schema(implementation = TokenResponse.class))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400",
+                    description = "Validation failure (missing/blank refreshToken)",
+                    content = @Content(schema = @Schema(implementation = com.renan.taskmanager.common.api.ErrorResponse.class))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401",
+                    description = "Invalid refresh token (wrong type, tampered, expired, or not a JWT)",
+                    content = @Content(schema = @Schema(implementation = com.renan.taskmanager.common.api.ErrorResponse.class)))
+    })
+    public ResponseEntity<TokenResponse> refresh(@Valid @RequestBody RefreshRequest request) {
+        TokenResponse response = refreshTokenUseCase.execute(request.refreshToken());
         return ResponseEntity.ok(response);
     }
 }

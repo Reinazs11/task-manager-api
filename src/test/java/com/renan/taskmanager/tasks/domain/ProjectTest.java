@@ -141,11 +141,11 @@ class ProjectTest {
         void shouldAddAndExposeTask() {
             Project project = Project.create(OWNER, "P1");
 
-            Project.TaskAdded result = project.addTask(TITLE);
+            Task result = project.addTask(TITLE);
 
             assertThat(project.tasks()).hasSize(1);
             assertThat(project.tasks().get(0).getTitle()).isEqualTo(TITLE);
-            assertThat(result.task()).isNotNull();
+            assertThat(result).isNotNull();
         }
 
         @Test
@@ -153,10 +153,10 @@ class ProjectTest {
         void addedTaskCarriesProjectContext() {
             Project project = Project.create(OWNER, "P1");
 
-            Project.TaskAdded result = project.addTask(TITLE);
+            Task result = project.addTask(TITLE);
 
-            assertThat(result.task().getProjectId()).isEqualTo(project.getId());
-            assertThat(result.task().getOwnerId()).isEqualTo(OWNER);
+            assertThat(result.getProjectId()).isEqualTo(project.getId());
+            assertThat(result.getOwnerId()).isEqualTo(OWNER);
         }
 
         @Test
@@ -164,10 +164,10 @@ class ProjectTest {
         void shouldGenerateUniqueTaskIds() {
             Project project = Project.create(OWNER, "P1");
 
-            Project.TaskAdded r1 = project.addTask(new TaskTitle("First"));
-            Project.TaskAdded r2 = project.addTask(new TaskTitle("Second"));
+            Task r1 = project.addTask(new TaskTitle("First"));
+            Task r2 = project.addTask(new TaskTitle("Second"));
 
-            assertThat(r1.task().getId()).isNotEqualTo(r2.task().getId());
+            assertThat(r1.getId()).isNotEqualTo(r2.getId());
         }
 
         @Test

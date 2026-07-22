@@ -19,8 +19,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * Integration tests for Project and Task endpoints.
  *
- * <p>Covers the full HTTP stack with two registered users to test authorization:
- * userA owns resources; userB is the attacker who should get 403/404.</p>
+ * <p>Covers the full HTTP stack with two registered users to test authorization.
+ * userA owns resources; userB is the attacker. Per the anti-enumeration policy,
+ * a non-owner (or an id that does not exist at all) always receives 403 —
+ * never 404 — so the caller cannot distinguish the two cases.</p>
  */
 class ProjectTaskIT extends AbstractIntegrationTest {
 

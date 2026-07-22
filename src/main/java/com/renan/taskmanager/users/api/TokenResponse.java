@@ -4,8 +4,9 @@ package com.renan.taskmanager.users.api;
  * Response payload for successful authentication flows (login, refresh).
  *
  * <p>Clients send the {@code accessToken} on every subsequent request as
- * {@code Authorization: Bearer <accessToken>}. When it expires, they use the
- * {@code refreshToken} to obtain a new pair (refresh endpoint, future work).</p>
+ * {@code Authorization: Bearer <accessToken>}. When it expires, they call
+ * {@code POST /api/v1/auth/refresh} with the {@code refreshToken} to obtain
+ * a new access+refresh pair.</p>
  *
  * <p><b>Expires-in fields</b> let clients schedule proactive refresh before
  * expiry, avoiding mid-request 401s.</p>

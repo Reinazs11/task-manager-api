@@ -141,11 +141,15 @@ class JwtAuthorizationIT extends AbstractIntegrationTest {
 
         @Test
         @DisplayName("Should reject a token signed with a different key")
-        void shouldRejectTokenFromDifferentIssuer() throws Exception {
-            // A separate JwtService with a different secret signs the token
+        void shouldRejectTokenSignedWithDifferentKey() throws Exception {
+            // A separate JwtService with a different secret signs the token.
+            // (The display name historically said "different issuer", but this
+            // case actually exercises signature mismatch; iss/aud rejection is
+            // covered in JwtServiceTest.IssuerAudience.)
             JwtService rogue = new JwtService(
                     "another-secret-with-at-least-32-bytes-for-hs256-Ok!!!",
-                    60_000L, 3_600_000L);
+                    60_000L, 3_600_000L,
+                    "task-manager-api", "task-manager-api-users");
             String foreignToken = rogue.generateAccessToken(
                     java.util.UUID.randomUUID(), "attacker@example.com");
 
