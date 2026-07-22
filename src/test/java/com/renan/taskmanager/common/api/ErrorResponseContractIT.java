@@ -313,6 +313,51 @@ class ErrorResponseContractIT extends AbstractIntegrationTest {
     }
 
     // ========================================================================
+    // 429 TOO_MANY_REQUESTS (auth rate limit)
+    // ========================================================================
+    // Exercises RateLimitFilter: exceeding the per-IP token-bucket capacity on
+    // an auth endpoint must return the 6-field shape (the filter writes the body
+    // directly, mirroring JsonAuthenticationEntryPoint for 401, so the contract
+    // holds even outside the @RestControllerAdvice). A dedicated test here
+    // locks the shape independently of the behavioral AuthRateLimitIT.
+    @Nested
+    @DisplayName("429 TOO_MANY_REQUESTS contract (auth rate limit)")
+    class TooManyRequests {
+
+        @Test
+        @DisplayName("Burst past the auth capacity returns the 6-field error shape")
+        void rateLimited() throws Exception {
+            String ip = "203.0.113.222";
+            String uri = "/api/v1/auth/login";
+            Map<String, Object> body = Map.of("email", "anyone@example.com", "password", "WrongPassword1");
+
+            // Drain the per-IP bucket (default capacity 10, see application.yml).
+            // These fail login → 401, but consume tokens.
+            for (int i = 0; i < 10; i++) {
+                mockMvc.perform(post(uri)
+                                .header("X-Forwarded-For", ip)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(body)))
+                        .andExpect(status().isUnauthorized());
+            }
+
+            mockMvc.perform(post(uri)
+                            .header("X-Forwarded-For", ip)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(body)))
+                    .andExpect(status().isTooManyRequests())
+                    .andExpect(jsonPath("$.timestamp").isNotEmpty())
+                    .andExpect(jsonPath("$.status").value(429))
+                    .andExpect(jsonPath("$.error").value("Too Many Requests"))
+                    .andExpect(jsonPath("$.message").isNotEmpty())
+                    .andExpect(jsonPath("$.path").value(uri))
+                    .andExpect(jsonPath("$.details").isArray())
+                    .andExpect(jsonPath("$.details.length()").value(0))
+                    .andExpect(header().exists("Retry-After"));
+        }
+    }
+
+    // ========================================================================
     // 500 INTERNAL_SERVER_ERROR (catch-all)
     // ========================================================================
 
