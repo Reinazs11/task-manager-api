@@ -59,22 +59,13 @@ Contexts: `users` (authentication) and `tasks` (projects and tasks).
 - **Unit tests**: domain + application services with Mockito (no Spring context).
 - **Integration tests**: repositories and controllers with Testcontainers (real PostgreSQL).
 
-### Test strategy by layer (decided after the Step 7 review)
-- **Domain + application services**: unit tests with Mockito, no Spring context.
-- **Authenticated controllers**: `@SpringBootTest` + Testcontainers. The
-  `JwtAuthenticationFilter` and `SecurityConfig` are part of the contract
-  that matters — mocking the security context with `@WebMvcTest` would hide
-  bugs that only surface with the real filter chain (tampered tokens, missing
-  `Bearer` prefix, refresh-vs-access confusion, etc.). `JwtAuthorizationIT`
-  covers 6 token variants and `ErrorResponseContractIT` asserts the error
-  envelope field-by-field; neither is reproducible with a controller slice.
-- **Public controllers** (no JWT): `@WebMvcTest` + MockMvc is fine — nothing
-  security-related to lose by slicing.
-- **Repositories**: `@DataJpaTest` + Testcontainers.
-
-> **Rationale:** the old rule "Prefer @WebMvcTest for controllers" was
-> aspirational and didn't match what the project actually needed. Documenting
-> the real decision is more honest than a rule the codebase quietly violates.
+### Test strategy by layer
+The full strategy and its rationale live in **`DECISIONS.md` #4** (single source
+of truth). Summary: domain + application services use Mockito (no Spring);
+authenticated controllers use `@SpringBootTest` + Testcontainers because the
+`JwtAuthenticationFilter`/`SecurityConfig` chain IS the contract that matters;
+public controllers use `@WebMvcTest`; repositories use `@DataJpaTest` + Testcontainers.
+Do not duplicate the rationale here — see DECISIONS.md #4.
 
 ### Forbidden (cheating on tests)
 - ❌ `@Disabled` on a broken test (fix it, or delete it with justification).
@@ -110,7 +101,7 @@ docs: update README with new endpoints
 
 ## AI-assisted development — guardrails (learned the hard way)
 
-These rules exist because every defect found in the `fix/review-findings` branch
+These rules exist because every defect found during the pre-release review
 traced back to one of four AI failure modes. They are non-negotiable when an
 agent is writing code in this repo.
 
@@ -196,8 +187,9 @@ CI runs scoped PIT against the domain layer on every push (~10s, 90 mutations,
 `mvn -P pit test-compile org.pitest:pitest-maven:mutationCoverage
 -DtargetClasses=<pkg> -DtargetTests=<pkg>`.
 Profile `pit` needs `timeoutConstant=30000` (Testcontainers tests exceed the 8s
-default). Recent scores: `common.api.GlobalExceptionHandler` 95%, domain layer
-82%. Remaining survivors are **justified false positives** (do not chase):
+default). CI-scoped score on the domain layer: ~80% killed (consistent with
+DECISIONS.md #13). Other layers are mutation-testable on demand locally.
+Remaining survivors are **justified false positives** (do not chase):
 - `hashCode()` returning 0 — no observable contract without a HashMap.
 - `toString()` returning "" — debug-only, not asserted.
 - `equals()` on `User`/`Task` entities — identity-based, partially covered by
