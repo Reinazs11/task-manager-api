@@ -147,12 +147,17 @@ provoking in honest tests.
 These are **not bugs** — they are consciously out of scope, with the path to
 close each one documented.
 
-### [1] No refresh-token revocation
-Without a server-side token store, the old refresh token stays valid until its
-own expiry after rotation. Logout is a client-side concern (drop the tokens);
-there is no server session to clear.
-**Close it when:** revocation becomes a real requirement.
-**How:** a `refresh_token_jti` table or a Redis set.
+### [1] No refresh-token revocation — SUPERSEDED (2026-07)
+**Status:** Superseded — promoted to active work in issue #11
+([Refresh-token revocation (server-side token store)](https://github.com/Reinazs11/task-manager-api/issues/11)).
+
+Previously accepted as a stateless trade-off: without a server-side token
+store, the old refresh token stayed valid until its own expiry after
+rotation. Logout was a client-side concern (drop the tokens); there was
+no server session to clear. The limitation is now scheduled to be closed
+(see issue #11 for the store choice and `/auth/logout` design). This
+entry is kept for history — the decision log records what was accepted
+and when it was reversed, not just the current state.
 
 ### [2] `UserId` / `ProjectId` / `TaskId` are three near-identical classes
 Each is a `final class` wrapping a `UUID` with `generate()`/`of()` factories
@@ -176,6 +181,43 @@ Every authenticated user has the same role; authorization is owner-based
 Everything is synchronous. There is no `@Async`, no scheduler, no message broker.
 **Close it when:** background jobs (welcome emails, periodic cleanup) become a
 requirement.
+
+### [6] No async messaging (Kafka / RabbitMQ)
+There is no message broker. The API does not publish or consume events.
+Adding one "to have it" would be complexity without a use case at this scale.
+**Close it when:** a real async use case appears — most likely email
+notifications (see [9]) or out-of-band audit writes (see issue #9).
+**How:** start with a single consumer for one concrete event; do not stand
+up infrastructure speculatively.
+
+### [7] Hard deletes, no soft delete
+`DELETE /projects/{id}` is a hard delete — the row is removed. There is no
+`deleted_at` tombstone. This is the simplest correct behavior for a
+portfolio, but in systems with compliance (GDPR), legal, or audit exposure,
+nothing is ever truly deleted.
+**Close it when:** audit/compliance requirements demand recoverability (this
+pairs naturally with the audit log in issue #9).
+**How:** add a `deleted_at timestamptz` column, filter `WHERE deleted_at IS
+NULL` in repository queries, and exclude tombstoned rows from listings.
+
+### [8] Single-owner model — no collaboration or sharing
+Projects and tasks have exactly one owner; there are no assignees, no
+invitations, no shared workspaces. The domain models a personal task list,
+not a team tool.
+**Close it when:** the product narrative shifts from "personal task manager"
+to "team task management" — that is a domain redesign, not a feature add.
+**Why kept:** collaboration multiplies complexity (permissions, invitations,
+notifications, conflict resolution) for little portfolio payoff unless
+multi-user scenarios are the point of the showcase.
+
+### [9] No email notifications (confirmation, password reset)
+There is no email sending — no signup confirmation, no password-reset flow,
+no welcome message. Implementing it would require an SMTP/SES integration
+and almost certainly async delivery (pulling in limitation [5]/[6]).
+**Close it when:** outbound email becomes a real product requirement.
+**How:** SMTP provider (SES/Postmark) + an async sender (message broker per
+[6], or `@Async` per [5]). Do not send email synchronously on the request
+thread.
 
 ---
 
