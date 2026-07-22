@@ -229,3 +229,8 @@ thread.
   "Close it when" + "How".
 - Reversing a decision? Don't delete it — mark it **Superseded** and point to
   the new one. The history is the point of the log.
+- Scheduling active work (something that **will** be done)? Open a GitHub
+  Issue — don't grow this file into a roadmap. The split: this document is
+  for what is **accepted** (out of scope by choice); Issues are for what is
+  **planned**. When an accepted limitation is promoted to planned work, mark
+  it **Superseded** here and link the issue (see limitation [1] → issue #11).
