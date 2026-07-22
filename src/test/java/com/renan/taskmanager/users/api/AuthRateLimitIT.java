@@ -5,6 +5,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.TestPropertySource;
 
 import java.util.Map;
 
@@ -17,20 +18,20 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * Integration tests for the auth-endpoint rate limiter ({@code RateLimitFilter}).
  *
- * <p>Verifies the security control end-to-end: a per-IP token bucket on
- * {@code /api/v1/auth/**} returns 429 with the standard six-field
- * {@code ErrorResponse} once the configured capacity is exceeded, and leaves
- * non-auth paths untouched.</p>
+ * <p>Verifies the security control end-to-end: a per-IP token bucket on the auth
+ * endpoints returns 429 with the standard six-field {@code ErrorResponse} once
+ * the configured capacity is exceeded, and leaves other paths untouched.</p>
  *
  * <p><b>Isolation:</b> each test sends a distinct {@code X-Forwarded-For} so its
- * bucket is independent. Each {@code @SpringBootTest} class owns its own
- * ApplicationContext (and therefore its own {@code RateLimiter}), so buckets do
- * not leak across test classes.</p>
+ * bucket is independent. {@code @TestPropertySource} enables XFF trust for this
+ * class only (default is false) — that creates a separate cached ApplicationContext
+ * from the rest of the suite, which is exactly what we want here.</p>
  *
  * <p><b>Capacity assumption:</b> the dev profile configures 10 requests per
  * minute per IP (see {@code application.yml}). These tests depend on that
  * default; if it changes, the burst counts here must change too.</p>
  */
+@TestPropertySource(properties = "app.rate-limit.trust-forwarded-for=true")
 class AuthRateLimitIT extends AbstractIntegrationTest {
 
     private static final int AUTH_CAPACITY = 10;

@@ -317,9 +317,10 @@ class ErrorResponseContractIT extends AbstractIntegrationTest {
     // ========================================================================
     // Exercises RateLimitFilter: exceeding the per-IP token-bucket capacity on
     // an auth endpoint must return the 6-field shape (the filter writes the body
-    // directly, mirroring JsonAuthenticationEntryPoint for 401, so the contract
-    // holds even outside the @RestControllerAdvice). A dedicated test here
-    // locks the shape independently of the behavioral AuthRateLimitIT.
+    // via HttpErrorWriter, the same writer JsonAuthenticationEntryPoint uses for
+    // 401, so the contract holds even outside the @RestControllerAdvice). A
+    // dedicated test here locks the shape independently of the behavioral
+    // AuthRateLimitIT.
     @Nested
     @DisplayName("429 TOO_MANY_REQUESTS contract (auth rate limit)")
     class TooManyRequests {
@@ -327,7 +328,9 @@ class ErrorResponseContractIT extends AbstractIntegrationTest {
         @Test
         @DisplayName("Burst past the auth capacity returns the 6-field error shape")
         void rateLimited() throws Exception {
-            String ip = "203.0.113.222";
+            // Uses the default remoteAddr (MockMvc's socket addr). trust-forwarded-for
+            // is false here, so no XFF header is needed. The @BeforeEach in the base
+            // class resets the limiter, so the bucket starts full for this test.
             String uri = "/api/v1/auth/login";
             Map<String, Object> body = Map.of("email", "anyone@example.com", "password", "WrongPassword1");
 
@@ -335,14 +338,12 @@ class ErrorResponseContractIT extends AbstractIntegrationTest {
             // These fail login → 401, but consume tokens.
             for (int i = 0; i < 10; i++) {
                 mockMvc.perform(post(uri)
-                                .header("X-Forwarded-For", ip)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(body)))
                         .andExpect(status().isUnauthorized());
             }
 
             mockMvc.perform(post(uri)
-                            .header("X-Forwarded-For", ip)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(body)))
                     .andExpect(status().isTooManyRequests())
