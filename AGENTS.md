@@ -97,6 +97,13 @@ docs: update README with new endpoints
 3. Show what will be done, execute, verify (build + tests), report.
 4. Before destructive operations (delete file, overwrite, force push):
    explain and wait for confirmation.
+5. When you find a bug, a possible improvement, or a new feature idea during
+   work: first search the [GitHub Issues](https://github.com/Reinazs11/task-manager-api/issues)
+   for an existing one. If it already exists, drop it. If not, **propose** a
+   new issue (title, why, trade-offs) and wait for explicit confirmation
+   before creating it — never grow the tracker with duplicates or half-formed
+   ideas during a long session. This keeps "accepted limitations" (DECISIONS.md)
+   and "planned work" (Issues) cleanly separated.
 5. Filter outputs: never return full `mvn`/`docker` logs. Use `| tail -n` or equivalent.
 
 ## AI-assisted development — guardrails (learned the hard way)
