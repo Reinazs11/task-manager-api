@@ -130,27 +130,20 @@ These are correct and should not be touched in any future refactor pass:
 
 ---
 
-## 5. Known accepted trade-offs (not bugs)
+## 5. Known accepted trade-offs
 
-Documented here so future work doesn't re-litigate them:
+The full list of engineering decisions and accepted limitations now lives in
+**`DECISIONS.md`** (project root). Highlights relevant to this review:
 
-- **Stateless refresh rotation.** Without a token store, the old refresh
-  token stays valid until its own expiry after rotation. One-time-use
-  refresh would require Redis or a DB-backed blacklist. Documented in the
-  Javadoc of `RefreshTokenUseCase` and in the `/auth/refresh` OpenAPI
-  description.
-- **No refresh-token revocation on logout.** Logout is a client-side
-  concern (drop the tokens); there is no server-side session to clear.
-  Same stateless trade-off as above.
-- **`UserId`/`ProjectId`/`TaskId` are three near-identical classes.** A
-  generic base or sealed hierarchy would collapse them, but that refactor
-  risks ArchUnit and offers little payoff at this scale. Left as-is.
-- **PIT scoped to the domain layer in CI.** Other layers can be mutation-
-  tested on demand; the domain is where invariants live and earns the
-  continuous check.
-- **Coverage gate at 80% LINE.** Current state ~85% LINE / 96.6%
-  instructions. Not pushing to 100% — the remaining gaps are defensive
-  error-handling paths that are not worth provoking in honest tests.
+- **Stateless refresh rotation** — old refresh stays valid until expiry; no
+  token store. Path to close: Redis or a `refresh_token_jti` table.
+- **`UserId`/`ProjectId`/`TaskId` are three near-identical classes** — left
+  as documented debt; refactor risks ArchUnit for little payoff.
+- **PIT scoped to the domain layer in CI** — other layers testable on demand.
+- **Coverage gate at 80% LINE** — remaining gaps are defensive error-handling
+  paths not worth provoking in honest tests.
+
+See `DECISIONS.md` for the rationale and the "close it when" notes on each.
 
 ---
 

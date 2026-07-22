@@ -156,59 +156,16 @@ either deletes working code or masks the real bug.
 - If the grep contradicts the claim, say so explicitly — don't silently adapt.
   Document the false positive; the next reviewer benefits.
 
-## Pending design decisions (document here when decided)
-- [x] **Logging strategy: SLF4J + Logback native, no extra dependencies**
-  (decided in Step 6c). Rationale: professional-grade observability without
-  pulling in Logstash encoders or Micrometer for a portfolio project. Concrete
-  pieces: (1) `CorrelationIdFilter` puts an `X-Request-Id` in the MDC so every
-  log line carries it; (2) `SanitizingRequestLoggingFilter` emits one INFO line
-  per request and redacts `Authorization`/`Cookie` headers; (3)
-  `logback-spring.xml` sets profile-aware levels (dev/test/prod). Body logging
-  is gated behind TRACE + a sensitive-key heuristic and is off by default.
-- [x] **API versioning: `/api/v1/...` prefix on all endpoints** (decided: path-based)
-- [x] **OpenAPI in prod: disabled.** `application-prod.yml` sets
-  `springdoc.swagger-ui.enabled=false` and `springdoc.api-docs.enabled=false`.
-  Internal docs must not leak to production.
-- [x] **Schema migration strategy: Flyway 10 + SQL versioned files**
-  (decided in Step 7b). Rationale: Flyway uses plain SQL (more readable than
-  Liquibase XML/YAML for a small, stable schema), has massive adoption in the
-  Spring ecosystem, and is the idiom a reviewer expects. Concrete pieces:
-  `flyway-core` + `flyway-database-postgresql` (Flyway 10 splits per-DB support
-  into separate modules); `src/main/resources/db/migration/V1__init_schema.sql`
-  captures the schema matching the JPA entities; `application.yml` sets
-  `ddl-auto=validate` in all profiles so Flyway owns the schema end-to-end.
-  Changes go in `V2__`, `V3__`, etc. — never edit `V1` after it's been applied.
-- [x] **Anti-enumeration: collapse 404 into 403 on authenticated lookups**
-  (decided in `fix/review-findings`). Every authenticated GET/PATCH/DELETE on
-  a project or task checks `existsByIdAndOwnerId` FIRST. A non-owner, or a
-  random id, both get `AccessDeniedException` (→ 403) — never 404. This is
-  uniform across `GetProject`, `DeleteProject`, `CreateTask`, `ListTasks`,
-  `UpdateTaskStatus`. Same rationale as login: don't let an attacker enumerate
-  which resource ids exist.
-- [x] **Refresh token rotation: stateless, no server-side blacklist**
-  (decided in `fix/review-findings`). `POST /auth/refresh` trades a refresh
-  token for a new access+refresh pair. Both old and new refresh stay valid
-  until each expires — there is no token store, so one-time-use refresh is not
-  possible without Redis/DB. Accepted trade-off: the API stays horizontally
-  scalable. If true revocation becomes a requirement, the next step is a
-  `refresh_token_jti` table or Redis set.
-- [x] **JWT `iss`/`aud` enforced; type check centralized in `JwtService`**
-  (decided in `fix/review-findings`). Builder emits `iss`/`aud`; parser calls
-  `requireIssuer`/`requireAudience`. Defense-in-depth: if another service ever
-  shares this signing key, its tokens are rejected. Token-type validation
-  (access vs refresh) moved out of the filter into `JwtService.parseAccessToken`
-  / `parseRefreshToken` so filter, use cases, and tests all go through one
-  chokepoint. Defaults via `app.jwt.issuer`/`app.jwt.audience`.
-- [x] **CORS: env-driven, fail-fast in prod**
-  (decided in `fix/review-findings`). `app.cors.allowed-origins` (CSV) drives
-  a `CorsConfigurationSource` bean. Dev profile defaults to
-  `http://localhost:3000`; prod profile ships the env var EMPTY so the bean
-  throws `IllegalStateException` at startup rather than silently allowing any
-  origin. `allowCredentials=true` (required for explicit origins + Authorization).
-- [x] **BCrypt cost 12, single PasswordEncoder bean**
-  (decided in `fix/review-findings`). OWASP 2026 baseline. `BCryptPasswordHasher`
-  injects the bean instead of `new BCryptPasswordEncoder(...)` — single source
-  of truth, no drift between two encoders.
+## Engineering decisions and known limitations
+
+All design decisions, accepted trade-offs, and known limitations live in
+**`DECISIONS.md`** (project root). That is the single source of truth for
+"why we chose X" and "what we consciously do NOT do".
+
+When a new decision is made or a limitation accepted during agent work:
+- Add it to `DECISIONS.md` under the appropriate section.
+- Do NOT duplicate the rationale here — `AGENTS.md` is for agent rules and
+  project conventions, not for decision history.
 
 ## Modern stack — quick reference
 

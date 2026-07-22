@@ -230,6 +230,8 @@ HTML report: `target/pit-reports/index.html`.
 | OpenAPI disabled in prod | Internal docs never leak to the public internet |
 
 See `AGENTS.md` for the full design-decision log and contribution rules.
+The complete decision register — including accepted limitations and
+trade-offs — lives in [`DECISIONS.md`](DECISIONS.md).
 
 ---
 
