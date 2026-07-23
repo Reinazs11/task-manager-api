@@ -30,7 +30,7 @@ import java.io.IOException;
 @Component
 public class JsonAuthenticationEntryPoint implements AuthenticationEntryPoint {
 
-    static final String AUTHENTICATION_REQUIRED = "Authentication is required";
+    private static final String AUTHENTICATION_REQUIRED = "Authentication is required";
 
     private final HttpErrorWriter httpErrorWriter;
 

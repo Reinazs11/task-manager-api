@@ -34,6 +34,11 @@ public class RateLimitConfig {
                                        @Value("${app.rate-limit.auth.refill-period-seconds:60}") long refillPeriodSeconds,
                                        @Value("${app.rate-limit.auth.bucket-max-size:100000}") long maxBuckets,
                                        @Value("${app.rate-limit.auth.bucket-expire-after-access-minutes:60}") long expireAfterAccessMin) {
+        validatePositive("capacity", capacity);
+        validatePositive("refill-tokens", refillTokens);
+        validatePositive("refill-period-seconds", refillPeriodSeconds);
+        validatePositive("bucket-max-size", maxBuckets);
+        validatePositive("bucket-expire-after-access-minutes", expireAfterAccessMin);
         return new RateLimiter(
                 capacity,
                 refillTokens,
@@ -41,5 +46,18 @@ public class RateLimitConfig {
                 maxBuckets,
                 Duration.ofMinutes(expireAfterAccessMin)
         );
+    }
+
+    /**
+     * Fail-fast on misconfiguration: a non-positive rate-limit value either
+     * disables the limiter silently (capacity=0 blocks every request) or
+     * breaks the bucket math. Booting with a clear message is better than a
+     * mysterious 429 storm in production.
+     */
+    private static void validatePositive(String name, long value) {
+        if (value <= 0) {
+            throw new IllegalStateException(
+                    "app.rate-limit.auth." + name + " must be positive, got " + value);
+        }
     }
 }

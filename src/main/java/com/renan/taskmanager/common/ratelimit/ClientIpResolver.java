@@ -52,6 +52,13 @@ public final class ClientIpResolver {
                 }
             }
         }
-        return request.getRemoteAddr();
+        String remoteAddr = request.getRemoteAddr();
+        if (remoteAddr == null) {
+            // Should not happen for a real socket, but some test harnesses /
+            // odd proxies yield null. Fall back to a shared bucket rather than
+            // letting a null key NPE its way to a 500 on a public path.
+            return "unknown";
+        }
+        return remoteAddr;
     }
 }
