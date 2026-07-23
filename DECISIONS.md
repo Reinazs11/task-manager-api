@@ -140,6 +140,70 @@ LINE gate runs, so the check reflects both suites. Gate is at LINE ≥80%; not
 pushing to 100% — remaining gaps are defensive error handling not worth
 provoking in honest tests.
 
+### 15. Auth-endpoint rate limiting: in-memory per-IP token bucket (Bucket4j)
+**Status:** Accepted (2026-07) — closes issue #7
+
+A per-source-IP token bucket (Bucket4j `bucket4j-core`) throttles
+**`/api/v1/auth/login` and `/api/v1/auth/refresh`** (only) to **10 requests /
+minute / IP** with a shared bucket across both endpoints. Closing the
+brute-force gap that anti-enumeration (decision #6) does not cover:
+anti-enumeration defeats single-shot probing, but not volumetric attacks.
+BCrypt cost 12 slows each guess but does not cap the guess rate.
+
+**Why only login + refresh (not register):** these are the only endpoints where
+an attacker benefits from volume — guessing passwords or rotating refresh
+tokens. Register is a creation, not a guess; throttling it would also block
+legitimate onboarding from shared NATs (a whole office signing up in the same
+minute). The filter uses an explicit path set, not a prefix match, so adding a
+new auth endpoint does not silently get throttled.
+
+**Why in-memory and not distributed:** state lives in a Caffeine cache inside
+the process. It is not shared across instances and resets on restart. For a
+single-instance portfolio this is the correct trade-off (no Redis dependency);
+for a multi-instance deployment it would under-count and need a shared backend.
+See limitation [1] / issue #11 — if token revocation later pulls in Redis,
+`bucket4j-redis` can back the same `RateLimiter` interface without touching the
+filter.
+
+**Why Caffeine and not a plain `ConcurrentHashMap`:** the bucket key is the
+client IP, which is spoofable via `X-Forwarded-For` (see below). An unbounded
+map would let an attacker flood distinct IPs and exhaust the heap — turning
+the brute-force defense into a cheap DoS. Caffeine caps the map
+(`maximumSize`, default 100k) and evicts idle buckets (`expireAfterAccess`,
+default 60 min), bounding memory regardless of key diversity.
+
+**Why per-IP and not per-account:** per-account throttling requires knowing
+the account exists, which reintroduces the enumeration surface that decision
+#6 collapses. Per-IP is the standard for login throttling.
+
+**Why login + refresh share a bucket:** both are equally brute-force-sensitive
+auth paths; separate buckets would double an attacker's budget.
+
+**Why the limiter counts every attempt (including 400 and 401):** the token is
+consumed in the filter, before the controller runs. This is intentional: it
+keeps BCrypt cost 12 off the hot path for floods, so an attacker cannot burn
+CPU by spamming malformed bodies. The trade-off is that a legitimate user
+fumbling their password (or CAPS LOCK) consumes their own budget; with a
+10/min limit this is tolerable (10 wrong guesses → 1 min cooldown).
+
+**Why a filter that writes the response (not an exception for the advice):**
+the filter runs before the `DispatcherServlet`, so an exception here is not
+caught by `@RestControllerAdvice` — it would surface as a generic 500. The
+filter delegates serialization to `HttpErrorWriter`, the same writer used by
+`JsonAuthenticationEntryPoint` (401), so the six-field `ErrorResponse` contract
+holds regardless of which layer rejects the request.
+
+**`X-Forwarded-For` trust is opt-in (`app.rate-limit.trust-forwarded-for`):
+default false.** Behind a reverse proxy that overwrites (not appends to) XFF,
+enable it so `getRemoteAddr()` (the proxy's IP) is replaced by the real client.
+With it disabled — the default, and the only safe mode when the app is directly
+exposed — the resolver uses the raw socket address, which a client cannot
+spoof, so rate limiting cannot be bypassed by header manipulation.
+
+---
+
+## Known limitations (accepted trade-offs)
+
 ---
 
 ## Known limitations (accepted trade-offs)

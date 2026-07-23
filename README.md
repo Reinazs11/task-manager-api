@@ -23,6 +23,10 @@ Java 21 and Spring Boot 3 following Simplified DDD and TDD.
 - **Token rotation endpoint** `POST /auth/refresh` — trade a refresh for a new pair
 - **Anti-enumeration posture** — login, resource lookups, and refresh all collapse
   error variants into a single 401/403 so callers cannot enumerate
+- **Auth-endpoint rate limiting** — per-IP token bucket (10 req/min) on
+  `/auth/login` and `/auth/refresh` returns 429 with `Retry-After`; closes the
+  brute-force gap that anti-enumeration alone leaves open. Bucket store is
+  bounded (Caffeine) so XFF spoofing can't exhaust the heap
 - **Simplified DDD** — bounded contexts (`users`, `tasks`) with `domain` /
   `application` / `infrastructure` / `api` layers
 - **Testcontainers** for integration tests against **real PostgreSQL 16** (no H2)

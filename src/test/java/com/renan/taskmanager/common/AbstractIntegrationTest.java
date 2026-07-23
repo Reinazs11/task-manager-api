@@ -1,6 +1,8 @@
 package com.renan.taskmanager.common;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.renan.taskmanager.common.ratelimit.RateLimiter;
+import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -54,4 +56,21 @@ public abstract class AbstractIntegrationTest {
 
     @Autowired
     protected ObjectMapper objectMapper;
+
+    @Autowired
+    protected RateLimiter rateLimiter;
+
+    /**
+     * Resets the in-memory rate limiter between tests.
+     *
+     * <p>Every {@code @SpringBootTest} class shares one ApplicationContext, so
+     * the per-IP bucket would otherwise accumulate across test methods and trip
+     * the limit spuriously (a single class can easily issue 10+ auth calls).
+     * Tests that <em>rely</em> on accumulation do so within a single method
+     * starting from this clean slate.</p>
+     */
+    @BeforeEach
+    void resetRateLimiter() {
+        rateLimiter.reset();
+    }
 }
