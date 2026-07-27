@@ -9,6 +9,7 @@ import org.springframework.test.context.TestPropertySource;
 
 import java.util.Map;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -180,6 +181,34 @@ class AuthRateLimitIT extends AbstractIntegrationTest {
                             .header("X-Forwarded-For", ip))
                     .andExpect(status().isUnauthorized())
                     .andExpect(jsonPath("$.status").exists());
+        }
+
+        @Test
+        @DisplayName("Should NOT throttle /auth/register even past the login capacity")
+        void shouldNotThrottleRegister() throws Exception {
+            // Regression guard for the explicit-path-set fix: the limiter must
+            // throttle login + refresh only, never register. If anyone reverts
+            // appliesTo to a prefix match on /api/v1/auth/**, this test breaks.
+            String ip = "203.0.113.41";
+            String registerPath = "/api/v1/auth/register";
+
+            // Far more than the auth capacity — every registration must still be
+            // processed (201), not rejected by the limiter. Unique email per call
+            // so each is a fresh 201, not a 409 duplicate.
+            for (int i = 0; i < AUTH_CAPACITY + 5; i++) {
+                Map<String, Object> body = Map.of(
+                        "email", "user" + i + "@example.com",
+                        "password", "Password123");
+                int status = mockMvc.perform(post(registerPath)
+                                .header("X-Forwarded-For", ip)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(body)))
+                        .andReturn().getResponse().getStatus();
+                assertThat(status)
+                        .as("register call #%d must not be throttled (429); the limiter targets login+refresh only",
+                                i + 1)
+                        .isEqualTo(201);
+            }
         }
     }
 }

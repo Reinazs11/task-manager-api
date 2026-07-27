@@ -60,8 +60,8 @@ honest than a rule the codebase quietly violated.
 **Status:** Accepted
 
 Every error returns `{ timestamp, status, error, message, path, details }`,
-enforced field-by-field by `ErrorResponseContractIT` for 7 status codes
-(400/401/403/404/405/409/500). A 500 never leaks the stack or exception class.
+enforced field-by-field by `ErrorResponseContractIT` for 8 status codes
+(400/401/403/404/405/409/429/500). A 500 never leaks the stack or exception class.
 
 ### 6. Anti-enumeration: collapse 404 into 403 on authenticated lookups
 **Status:** Accepted (2026-07)
@@ -199,10 +199,6 @@ enable it so `getRemoteAddr()` (the proxy's IP) is replaced by the real client.
 With it disabled — the default, and the only safe mode when the app is directly
 exposed — the resolver uses the raw socket address, which a client cannot
 spoof, so rate limiting cannot be bypassed by header manipulation.
-
----
-
-## Known limitations (accepted trade-offs)
 
 ---
 

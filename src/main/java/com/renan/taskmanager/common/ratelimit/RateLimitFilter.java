@@ -89,7 +89,10 @@ public class RateLimitFilter extends OncePerRequestFilter {
             if (!result.allowed()) {
                 response.setHeader("Retry-After", String.valueOf(result.retryAfterSeconds()));
                 httpErrorWriter.write(response, HttpStatus.TOO_MANY_REQUESTS, RATE_LIMIT_MESSAGE, request.getRequestURI());
-                log.warn("Client error 429: {} ({})", RATE_LIMIT_MESSAGE, request.getRequestURI());
+                // Include the resolved IP so abuse is investigable from logs.
+                // (Server-side logs only — the IP is never echoed to the client.)
+                log.warn("Rate limit denied: ip={} uri={} retryAfter={}s",
+                        clientIp, request.getRequestURI(), result.retryAfterSeconds());
                 return;
             }
         }
