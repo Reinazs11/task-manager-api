@@ -2,6 +2,7 @@ package com.renan.taskmanager.users.api;
 
 import com.renan.taskmanager.common.AbstractIntegrationTest;
 import com.renan.taskmanager.common.security.JwtService;
+import com.renan.taskmanager.users.domain.RevokedRefreshTokenRepository;
 import com.renan.taskmanager.users.domain.UserRepository;
 import io.jsonwebtoken.Claims;
 import org.junit.jupiter.api.BeforeEach;
@@ -25,21 +26,25 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *
  * <p><b>Why a dedicated IT?</b>
  * Token rotation crosses the same boundaries as login (HTTP → controller →
- * use case → {@code JwtService}), and the failure modes (wrong token type,
- * tampered token, missing token) only surface through the real JwtException
- * path. MockMvc with a full {@code @SpringBootTest} is the only honest way
- * to exercise this end-to-end.</p>
+ * use case → {@code JwtService} → {@code RevokedRefreshTokenRepository}), and
+ * the failure modes (wrong token type, tampered token, missing token, and now
+ * revoked/already-rotated tokens) only surface through the real JwtException
+ * and revocation-store paths. MockMvc with a full {@code @SpringBootTest} is
+ * the only honest way to exercise this end-to-end.</p>
  *
- * <p><b>Why stateless rotation (no server-side blacklist)?</b>
- * Without a token store we cannot invalidate a refresh token the moment it
- * is exchanged; both the old and the new refresh remain valid until the
- * older one expires. This is an accepted trade-off of the stateless design
- * (same shape as access tokens) and is documented on {@code RefreshTokenUseCase}.</p>
+ * <p><b>One-time-use rotation (closes issue #11 / DECISIONS.md limitation [1]):</b>
+ * The supplied refresh token is revoked server-side in the same transaction as
+ * the new pair's issuance. A replay of the old token returns 401, identical to
+ * any other invalid refresh token (anti-enumeration, DECISIONS.md #6). See
+ * DECISIONS.md #17 for the design.</p>
  */
 class RefreshTokenIT extends AbstractIntegrationTest {
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private RevokedRefreshTokenRepository revokedTokenRepository;
 
     @Autowired
     private JwtService jwtService;
@@ -50,7 +55,11 @@ class RefreshTokenIT extends AbstractIntegrationTest {
 
     @BeforeEach
     void cleanDatabase() {
+        // FK CASCADE on revoked_refresh_tokens.user_id drops the revoked-token
+        // rows when the user is deleted, so this single call resets both
+        // tables. Belt-and-suspenders for the case the cascade is ever dropped.
         userRepository.deleteAll();
+        revokedTokenRepository.deleteAll();
     }
 
     @Nested
@@ -89,6 +98,34 @@ class RefreshTokenIT extends AbstractIntegrationTest {
             // The original refresh token's claims equal the new access's subject.
             Claims oldClaims = jwtService.parseAndValidate(tokens.get("refreshToken"));
             assertThat(claims.getSubject()).isEqualTo(oldClaims.getSubject());
+        }
+
+        @Test
+        @DisplayName("One-time-use: the OLD refresh token returns 401 after rotation")
+        void shouldRejectOldRefreshTokenAfterRotation() throws Exception {
+            // Regression for issue #11 / DECISIONS.md #17: the contract is no
+            // longer stateless. The old refresh token must be unusable once it
+            // has been exchanged. The 401 shape must be identical to any other
+            // invalid refresh token (anti-enumeration).
+            Map<String, String> tokens = registerAndLogin(VALID_EMAIL, VALID_PASSWORD);
+            String oldRefresh = tokens.get("refreshToken");
+
+            mockMvc.perform(post(REFRESH_URI)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(Map.of("refreshToken", oldRefresh))))
+                    .andExpect(status().isOk());
+
+            // Replay the OLD refresh — must be rejected.
+            mockMvc.perform(post(REFRESH_URI)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(Map.of("refreshToken", oldRefresh))))
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.timestamp").exists())
+                    .andExpect(jsonPath("$.status").value(401))
+                    .andExpect(jsonPath("$.error").exists())
+                    .andExpect(jsonPath("$.message").exists())
+                    .andExpect(jsonPath("$.path").exists())
+                    .andExpect(jsonPath("$.details").exists());
         }
     }
 

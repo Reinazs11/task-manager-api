@@ -210,5 +210,31 @@ class AuthRateLimitIT extends AbstractIntegrationTest {
                         .isEqualTo(201);
             }
         }
+
+        @Test
+        @DisplayName("Should NOT throttle /auth/logout (not brute-force-sensitive)")
+        void shouldNotThrottleLogout() throws Exception {
+            // Regression guard for the explicit-path-set decision (DECISIONS.md
+            // #15 and #17): logout is not in the throttled path set. Logout
+            // carries no guessing surface (the caller already holds the token),
+            // and throttling it would block legitimate logout-from-multiple-
+            // devices behind a shared NAT. The token is invalid so each call
+            // returns 401, never 429.
+            String ip = "203.0.113.42";
+            String logoutPath = "/api/v1/auth/logout";
+            Map<String, Object> body = Map.of("refreshToken", "not.a.real.token");
+
+            for (int i = 0; i < AUTH_CAPACITY + 5; i++) {
+                int status = mockMvc.perform(post(logoutPath)
+                                .header("X-Forwarded-For", ip)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(body)))
+                        .andReturn().getResponse().getStatus();
+                assertThat(status)
+                        .as("logout call #%d must not be throttled (429); the limiter targets login+refresh only",
+                                i + 1)
+                        .isEqualTo(401);
+            }
+        }
     }
 }
