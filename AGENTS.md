@@ -6,30 +6,17 @@ professional REST APIs.** Code must impress technical clients in 15 seconds
 of GitHub reading.
 
 ## Stack (fixed, do not change without discussion)
-- Java 21 (records, sealed, pattern matching when it adds value)
-- Spring Boot 3.x
-- Spring Web, Spring Security, Spring Data JPA
-- PostgreSQL 16 (production and tests)
-- JWT via jjwt (access 15min + refresh 7days, both rotated via `/auth/refresh`;
-  `iss`/`aud` enforced in the parser; type check centralized in
-  `JwtService.parseAccessToken`/`parseRefreshToken`)
-- Lombok, MapStruct
-- Maven (wrapper `./mvnw`)
-- Docker + docker-compose
-- Testcontainers for integration tests
+Authoritative list and rationale: **`README.md` → Tech stack**. Key invariants:
+PostgreSQL 16 in both prod and tests (no H2), JWT via jjwt with `iss`/`aud`
+enforced in the parser, access 15 min + refresh 7 days rotated via
+`/auth/refresh`, Maven wrapper (`./mvnw`), Testcontainers for integration tests.
 
 ## Architectural Patterns
 
 ### Simplified DDD (not full DDD — this is a portfolio, not enterprise)
-Package structure organized by bounded context, not by technical layer:
-```
-com.renan.taskmanager.<context>/
-  domain/        — entities, value objects, domain rules (no Spring)
-  application/   — application services, use cases, DTOs
-  infrastructure/— JPA repositories, configs, security
-  api/           — controllers, advice, request/response models
-```
-Contexts: `users` (authentication) and `tasks` (projects and tasks).
+Package structure organized by bounded context, not by technical layer.
+Contexts: `users` (authentication) and `tasks` (projects and tasks). Full
+diagram and rationale: **`README.md` → Architecture** and **`DECISIONS.md` #1**.
 
 ### Clean Code — non-negotiable rules
 - Methods short (<20 lines). If longer, refactor.
@@ -45,8 +32,7 @@ Contexts: `users` (authentication) and `tasks` (projects and tasks).
 - **Never** throw a generic `RuntimeException`.
 - Domain exceptions: `<Context>Exception` (e.g. `UserAlreadyExistsException`).
 - All handled by a global `@RestControllerAdvice`.
-- Standardized error response (single JSON shape):
-  `{ timestamp, status, error, message, path, details }`.
+- Single standardized JSON shape (6 fields) — see **`DECISIONS.md` #5**.
 
 ## Tests — absolute rules
 
@@ -87,13 +73,13 @@ docs: update README with new endpoints
 - Feature branches: `feat/<scope>`, `fix/<scope>`, `test/<scope>`.
 
 ## Workflow with the agent
-1. **MANDATORY planning before every Step.** Before writing any code for a new
-   Step, produce a written plan covering: files to create/edit, design decisions,
+1. **MANDATORY planning before every feature.** Before writing any code,
+   produce a written plan covering: files to create/edit, design decisions,
    test plan (what to test, which layer: unit vs integration), and edge cases to
    cover. Get explicit approval before executing. This prevents coverage gaps
-   like the one found in Step 3 (missing authorization tests).
-2. Break implementation into steps (e.g. "Step 1: bootstrap + config",
-   "Step 2: users domain"...).
+   like missing authorization tests caught in an earlier review.
+2. Break implementation into phases (e.g. "phase 1: bootstrap + config",
+   "phase 2: users domain"...).
 3. Show what will be done, execute, verify (build + tests), report.
 4. Before destructive operations (delete file, overwrite, force push):
    explain and wait for confirmation.
@@ -194,44 +180,3 @@ When a new decision is made or a limitation accepted during agent work:
 - Add it to `DECISIONS.md` under the appropriate section.
 - Do NOT duplicate the rationale here — `AGENTS.md` is for agent rules and
   project conventions, not for decision history.
-
-## Modern stack — quick reference
-
-### Records (Java 14+)
-Immutable data carrier. Replaces verbose DTOs.
-```java
-// Old way: 40 lines of getter/setter/equals/hashCode
-public record TaskResponseDTO(UUID id, String title, TaskStatus status) {}
-```
-
-### Sealed classes (Java 17+)
-Restricts who can extend a class. Useful for modeling finite states.
-```java
-public sealed interface TaskStatus permits Todo, InProgress, Done {}
-```
-
-### Pattern matching (Java 21)
-Modern `switch` that extracts types automatically. More readable.
-
-### Testcontainers
-Spins up real Docker containers (PostgreSQL) during tests and tears them down after.
-**Why it matters:** testing with H2 (in-memory DB) hides bugs that only surface
-in real PostgreSQL. Clients see this and know you tested for real.
-
-### Mutation testing (PIT) — current state
-CI runs scoped PIT against the domain layer on every push (~10s, 90 mutations,
-~80% killed). Local whole-project runs still available:
-`mvn -P pit test-compile org.pitest:pitest-maven:mutationCoverage
--DtargetClasses=<pkg> -DtargetTests=<pkg>`.
-Profile `pit` needs `timeoutConstant=30000` (Testcontainers tests exceed the 8s
-default). CI-scoped score on the domain layer: ~80% killed (consistent with
-DECISIONS.md #13). Other layers are mutation-testable on demand locally.
-Remaining survivors are **justified false positives** (do not chase):
-- `hashCode()` returning 0 — no observable contract without a HashMap.
-- `toString()` returning "" — debug-only, not asserted.
-- `equals()` on `User`/`Task` entities — identity-based, partially covered by
-  reconstitute tests; full coverage is low-value.
-
-### MapStruct
-Generates Entity ↔ DTO mappers at compile time. Faster than ModelMapper,
-type-safe, no reflection.
