@@ -72,14 +72,17 @@ Every authenticated GET/PATCH/DELETE on a project or task checks
 `DeleteProject`, `CreateTask`, `ListTasks`, `UpdateTaskStatus`. Same rationale
 as login: don't let an attacker enumerate which resource ids exist.
 
-### 7. Refresh token rotation: stateless, no server-side blacklist
-**Status:** Accepted (2026-07)
+### 7. Refresh token rotation — SUPERSEDED (2026-07)
+**Status:** Superseded by decision #17 (issue #11)
 
-`POST /auth/refresh` trades a refresh token for a new access+refresh pair.
-Both the old and the new refresh stay valid until each expires — there is no
-token store, so one-time-use refresh is not possible without Redis/DB. Accepted
-trade-off: the API stays horizontally scalable and stateless. See limitation
-[1] below for the path to close it.
+Previously: `POST /auth/refresh` traded a refresh token for a new access+refresh
+pair with both the old and the new refresh staying valid until each expired —
+no token store, so one-time-use refresh was impossible without Redis/DB. The
+accepted trade-off was that the API stayed horizontally scalable and stateless
+(see limitation [1] for the original framing). This is now reversed: a
+`revoked_refresh_tokens` table backs one-time-use rotation and `/auth/logout`
+(decision #17). The HTTP/session layer is still stateless (no HTTP session,
+CSRF off); only refresh-token rotation is now stateful.
 
 ### 8. JWT `iss`/`aud` enforced; type check centralized in `JwtService`
 **Status:** Accepted (2026-07)
@@ -221,6 +224,53 @@ long as the `ApplicationContext` that owns it, so it is started once and reused
 across cached contexts — no race, no premature teardown. `@ServiceConnection`
 auto-wires the JDBC URL/credentials without `@DynamicPropertySource` boilerplate.
 
+### 17. Refresh-token revocation: server-side token store (PostgreSQL)
+**Status:** Accepted (2026-07) — closes issue #11, resolves limitation [1]
+
+A `revoked_refresh_tokens` table records the `jti` of every refresh token that
+has been either (a) rotated out by `POST /auth/refresh` (one-time-use
+rotation) or (b) explicitly revoked by `POST /auth/logout`. `RefreshTokenUseCase`
+checks the store on every refresh and rejects a known `jti` with the same
+`InvalidCredentialsException` → 401 used for any invalid token (anti-enumeration,
+decision #6).
+
+**Why PostgreSQL over Redis:** no new infra dependency. The revocation write
+shares the same transaction as the new token pair's issuance, so atomicity is
+free — if the new issuance fails, the old token stays valid; if the revocation
+insert fails, no new tokens are minted. Redis would add a second datastore and
+a distributed-transaction seam that a portfolio does not need. The lookup is
+indexed (PK on `jti`), so latency is a single PK existence check per refresh.
+
+**Why one-time-use rotation (and not just logout):** stateless rotation let a
+replayed refresh token mint tokens indefinitely until its own expiry. One-time-use
+closes that replay window and is the canonical "did the client implement
+rotation correctly?" guarantee. It also gives `/auth/logout` teeth: the revoked
+refresh is rejected on the next refresh attempt.
+
+**What is NOT revoked:** access tokens. They are short-lived (15 min) and
+revoking them server-side would require a `jti` lookup on every authenticated
+request. The trade-off (let an in-flight access token live out its 15 min
+after logout) is the standard industry answer and is acceptable here. The
+long-lived refresh token is the one that matters, and that one IS revoked.
+
+**Why `/auth/logout` is not rate-limited:** logout carries no guessing surface
+(the caller already holds the token), so it does not belong in the brute-force
+path set (decision #15). Throttling it would also block legitimate logout from
+multiple devices behind a shared NAT. `RateLimitFilter` keeps its explicit
+path set (`/auth/login`, `/auth/refresh`); `/auth/logout` is deliberately out.
+
+**Idempotency:** revoking the same `jti` twice is a no-op (`existsById` before
+insert in the adapter). Calling `/auth/logout` twice returns 204 both times;
+calling `/auth/refresh` with an already-rotated token returns 401 the second
+time (the row is already there).
+
+**Cleanup of dead rows:** `RevokedRefreshTokenRepository.deleteExpired(now)`
+purges rows whose `expires_at` has passed. No scheduler invokes it today
+(limitation [5] — no async work). The hook is on the port so the future
+scheduler does not have to reach past the domain. Dead rows are harmless: the
+`isRevokedAndActive` query already filters on `expires_at > now`, so they are
+invisible to the check and only cost storage.
+
 ---
 
 ## Known limitations (accepted trade-offs)
@@ -228,17 +278,16 @@ auto-wires the JDBC URL/credentials without `@DynamicPropertySource` boilerplate
 These are **not bugs** — they are consciously out of scope, with the path to
 close each one documented.
 
-### [1] No refresh-token revocation — SUPERSEDED (2026-07)
-**Status:** Superseded — promoted to active work in issue #11
-([Refresh-token revocation (server-side token store)](https://github.com/Reinazs11/task-manager-api/issues/11)).
+### [1] No refresh-token revocation — RESOLVED (2026-07)
+**Status:** Resolved — implemented via decision #17 (issue #11)
 
 Previously accepted as a stateless trade-off: without a server-side token
 store, the old refresh token stayed valid until its own expiry after
 rotation. Logout was a client-side concern (drop the tokens); there was
-no server session to clear. The limitation is now scheduled to be closed
-(see issue #11 for the store choice and `/auth/logout` design). This
-entry is kept for history — the decision log records what was accepted
-and when it was reversed, not just the current state.
+no server session to clear. This is now closed: a `revoked_refresh_tokens`
+table backs one-time-use rotation and `POST /auth/logout`. See decision #17
+for the design. This entry is kept for history — the decision log records
+what was accepted and when it was reversed, not just the current state.
 
 ### [2] `UserId` / `ProjectId` / `TaskId` are three near-identical classes
 Each is a `final class` wrapping a `UUID` with `generate()`/`of()` factories

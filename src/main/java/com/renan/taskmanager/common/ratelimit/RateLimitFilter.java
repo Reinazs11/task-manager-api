@@ -51,8 +51,11 @@ public class RateLimitFilter extends OncePerRequestFilter {
     private static final Logger log = LoggerFactory.getLogger(RateLimitFilter.class);
 
     /**
-     * Only the brute-force-sensitive auth paths are throttled. Register is
-     * intentionally excluded (see class Javadoc).
+     * Only the brute-force-sensitive auth paths are throttled. Register and
+     * logout are intentionally excluded: register is a creation, not a guess;
+     * logout carries no guessing surface (the caller already holds the token),
+     * and throttling either would block legitimate traffic from shared NATs.
+     * See class Javadoc and {@code DECISIONS.md} #15 and #17.
      */
     private static final Set<String> THROTTLED_PATHS = Set.of(
             "/api/v1/auth/login",
