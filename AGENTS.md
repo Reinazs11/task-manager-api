@@ -154,6 +154,36 @@ either deletes working code or masks the real bug.
 - If the grep contradicts the claim, say so explicitly — don't silently adapt.
   Document the false positive; the next reviewer benefits.
 
+### 5. Review discipline — one pass, then merge or follow-up
+Learned from PR #14, which ran 3 review rounds for a ~300-line feature. Round 1
+caught 2 real production bugs (worth it). Rounds 2 and 3 each produced ~1 minor
+fix plus a false-positive "blocker" that had to be disproved empirically.
+Net: ~3-4h of marginal work for marginal value.
+
+**Before requesting review, set a stop-loss:**
+- "This is the only planned pass. Security/contract/crash bugs get fixed
+  in-PR; everything else goes to a follow-up issue and the PR merges."
+- Without this, every round generates work for the next one.
+
+**Triage every finding into one bucket, and act only on the first two:**
+1. **Block merge** — security bypass, broken contract, crash, data loss. Fix now.
+2. **Fix in this PR** — doc-vs-code drift, inconsistency between analogous
+   endpoints (rule #3), anti-regression test for the current fix.
+3. **Follow-up issue** — style, speculative defense (null-guards against
+   impossible states), "nice-to-have" abstraction, polish.
+
+**Every "X is a bug" claim must come with proof, not a guess.**
+This applies to the reviewer too. Demand `file:line` and the grep/test/IT that
+reproduces it. The two false-positive "blockers" in PR #14 (trailing-slash
+bypass, ignored config) would have died at the source if the reviewer had run
+one IT or measured the YAML indentation before claiming. Rule #4 already says
+"verify before acting" — this says "the reviewer must verify before claiming".
+
+**For portfolio work specifically: stop earlier.** A PR that demonstrates the
+technique with sound decisions documented has done its job after one solid
+review. Time spent polishing an already-correct feature has negative ROI vs.
+shipping the next feature (metrics, deploy, another endpoint).
+
 ## Engineering decisions and known limitations
 
 All design decisions, accepted trade-offs, and known limitations live in
