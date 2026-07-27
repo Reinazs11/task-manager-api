@@ -187,4 +187,17 @@ public class JwtService {
     public String extractEmail(Claims claims) {
         return claims.get(CLAIM_EMAIL, String.class);
     }
+
+    /**
+     * Returns the {@code jti} (JWT ID) claim as a {@link UUID}.
+     *
+     * <p>The {@code jti} is emitted in {@link #buildToken} as
+     * {@code UUID.randomUUID().toString()}. It is the key used by the
+     * server-side revocation store ({@code RevokedRefreshTokenRepository}) to
+     * identify a refresh token that has been rotated out or explicitly
+     * revoked. jjwt exposes the {@code jti} claim via {@link Claims#getId()}.</p>
+     */
+    public UUID extractJti(Claims claims) {
+        return UUID.fromString(claims.getId());
+    }
 }
