@@ -43,7 +43,7 @@ them — and the FK violation caught while writing `ProjectRepositoryImplIT` is
 exactly the kind of bug this decision exists to surface.
 
 ### 4. Test strategy by layer (not one-size-fits-all)
-**Status:** Accepted (after the Step 7 review)
+**Status:** Accepted (after the first controller-layer review)
 
 | Layer | Strategy | Why |
 |---|---|---|
@@ -131,6 +131,12 @@ continuous check. Application and infrastructure layers can be mutation-tested
 on demand locally. Whole-project runs in CI would burn ~10 min for little added
 value at this size.
 
+Justified survivors on the domain layer (do not chase):
+- `hashCode()` returning 0 — no observable contract without a HashMap.
+- `toString()` returning "" — debug-only, not asserted.
+- `equals()` on `User`/`Task` entities — identity-based, partially covered by
+  reconstitute tests; full coverage is low-value.
+
 ### 14. Maven Surefire (`*Test`) / Failsafe (`*IT`) split + JaCoCo merge
 **Status:** Accepted
 
@@ -199,6 +205,21 @@ enable it so `getRemoteAddr()` (the proxy's IP) is replaced by the real client.
 With it disabled — the default, and the only safe mode when the app is directly
 exposed — the resolver uses the raw socket address, which a client cannot
 spoof, so rate limiting cannot be bypassed by header manipulation.
+
+### 16. Testcontainers PostgreSQL container exposed as a `@Bean`
+**Status:** Accepted (2026-07)
+
+The integration-test container is declared as a `@Bean` in
+`TestContainersConfig` with `@ServiceConnection`, not as a static `@Container`
+field on each test class. A static `@Container` field is started/stopped by the
+Testcontainers JUnit extension per class; when several test classes share the
+same cached Spring `ApplicationContext`, the container started by class A is
+torn down when A finishes, but the cached context still references it, so class
+B reconnects to a dead container and fails with `Connection refused`. Defining
+the container as a `@Bean` moves its lifecycle into Spring: it lives exactly as
+long as the `ApplicationContext` that owns it, so it is started once and reused
+across cached contexts — no race, no premature teardown. `@ServiceConnection`
+auto-wires the JDBC URL/credentials without `@DynamicPropertySource` boilerplate.
 
 ---
 
@@ -283,14 +304,22 @@ thread.
 
 ## How to read this file
 
-- Adding a non-obvious engineering choice? Append it under **Active decisions**
-  with Status, Context, Decision, and Consequences (one paragraph each is fine).
-- Accepting a limitation on purpose? Append it under **Known limitations** with
-  "Close it when" + "How".
-- Reversing a decision? Don't delete it — mark it **Superseded** and point to
-  the new one. The history is the point of the log.
-- Scheduling active work (something that **will** be done)? Open a GitHub
-  Issue — don't grow this file into a roadmap. The split: this document is
-  for what is **accepted** (out of scope by choice); Issues are for what is
-  **planned**. When an accepted limitation is promoted to planned work, mark
-  it **Superseded** here and link the issue (see limitation [1] → issue #11).
+### Adding a new decision
+Append it under **Active decisions** using the template:
+**Status** (Accepted/Superseded + date) · **Context** (the problem) ·
+**Decision** (what was chosen) · **Consequences** (trade-offs accepted).
+One paragraph per section is fine.
+
+For accepted limitations, append under **Known limitations** with
+"Close it when" + "How".
+
+### Scheduling active work
+Something that **will** be done goes into a GitHub Issue — don't grow this
+file into a roadmap. The split: this document is for what is **accepted**
+(out of scope by choice); Issues are for what is **planned**. When an accepted
+limitation is promoted to planned work, mark it **Superseded** here and link
+the issue (see limitation [1] → issue #11).
+
+### Reversing a decision
+Don't delete the old entry — mark it **Superseded** and point to the new one.
+The history is the point of the log.
