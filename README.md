@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/Reinazs11/task-manager-api/actions/workflows/ci.yml/badge.svg)](https://github.com/Reinazs11/task-manager-api/actions/workflows/ci.yml)
 [![Java](https://img.shields.io/badge/Java-21-orange)](https://adoptium.net/)
-[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.3-6DB33F)](https://spring.io/projects/spring-boot)
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.3.x-6DB33F)](https://spring.io/projects/spring-boot)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 REST API for task and project management with JWT authentication, built with
@@ -215,23 +215,10 @@ HTML report: `target/pit-reports/index.html`.
 
 ## Key engineering decisions
 
-| Decision | Rationale |
-|----------|-----------|
-| Simplified DDD (not full) | Portfolio-grade rigor without the overhead of aggregates-of-aggregates |
-| `ddl-auto=validate` + Flyway | Schema is versioned and reviewed; Hibernate never mutates it |
-| Testcontainers over H2 | Catches dialect-specific bugs (UUID, unique constraints, FK enforcement) |
-| Spring-managed container as `@Bean` | Aligns container lifecycle with the ApplicationContext cache |
-| Centralized error shape | One 6-field JSON contract enforced by `ErrorResponseContractIT` |
-| Stateless JWT (no sessions) | Horizontally scalable; `/auth/refresh` rotates without a token store |
-| Anti-enumeration collapse (404 → 403) | A non-owner (or a random id) gets 403 uniformly — no resource existence leak |
-| JWT `iss`/`aud` enforced in parser | Defense-in-depth: tokens from a different issuer/audience are rejected even if the signing key leaked |
-| Token-type check in `JwtService` | `parseAccessToken`/`parseRefreshToken` centralize signature + exp + iss/aud + type in one place |
-| CORS fail-fast in prod | Empty `CORS_ALLOWED_ORIGINS` throws at startup instead of silently allowing any origin |
-| BCrypt cost 12, single bean | OWASP 2026 baseline; `BCryptPasswordHasher` injects the bean instead of `new`-ing one |
-| Actuator: only `/health` exposed | Liveness/readiness for Docker/K8s without leaking env, beans, or heap dumps |
-| PIT scoped to domain in CI | Mutation testing runs continuously where invariants live, ~10s per build |
-| Correlation id in every log line | One id traces a request across filters, controllers, and DB |
-| OpenAPI disabled in prod | Internal docs never leak to the public internet |
+Highlights: anti-enumeration (404 collapsed into 403 on authenticated lookups),
+Testcontainers over H2, Flyway-validated schema, stateless JWT with `iss`/`aud`
+enforced in the parser, BCrypt cost 12, PIT mutation testing scoped to the
+domain layer in CI, and an 80% line-coverage gate.
 
 `AGENTS.md` holds contribution rules and AI-development guardrails.
 [`DECISIONS.md`](DECISIONS.md) is the decision log and accepted-limitations
