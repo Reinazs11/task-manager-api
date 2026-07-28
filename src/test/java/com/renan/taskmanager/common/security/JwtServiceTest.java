@@ -86,6 +86,20 @@ class JwtServiceTest {
 
             assertThat(t1).isNotEqualTo(t2);
         }
+
+        @Test
+        @DisplayName("extractJti should return the jti claim as a UUID")
+        void shouldExtractJtiFromClaims() {
+            UUID userId = UUID.randomUUID();
+            String token = jwtService.generateRefreshToken(userId, "renan@example.com");
+
+            Claims claims = jwtService.parseRefreshToken(token);
+            UUID jti = jwtService.extractJti(claims);
+
+            // The jti is emitted as a random UUID string (JwtService.buildToken);
+            // extractJti must parse it back into the same UUID value.
+            assertThat(jti).isEqualTo(UUID.fromString(claims.getId()));
+        }
     }
 
     @Nested

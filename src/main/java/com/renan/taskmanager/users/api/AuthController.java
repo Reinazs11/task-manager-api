@@ -1,6 +1,7 @@
 package com.renan.taskmanager.users.api;
 
 import com.renan.taskmanager.users.application.LoginUseCase;
+import com.renan.taskmanager.users.application.LogoutUseCase;
 import com.renan.taskmanager.users.application.RefreshTokenUseCase;
 import com.renan.taskmanager.users.application.RegisterUserUseCase;
 import io.swagger.v3.oas.annotations.Operation;
@@ -35,13 +36,16 @@ public class AuthController {
     private final RegisterUserUseCase registerUserUseCase;
     private final LoginUseCase loginUseCase;
     private final RefreshTokenUseCase refreshTokenUseCase;
+    private final LogoutUseCase logoutUseCase;
 
     public AuthController(RegisterUserUseCase registerUserUseCase,
                           LoginUseCase loginUseCase,
-                          RefreshTokenUseCase refreshTokenUseCase) {
+                          RefreshTokenUseCase refreshTokenUseCase,
+                          LogoutUseCase logoutUseCase) {
         this.registerUserUseCase = registerUserUseCase;
         this.loginUseCase = loginUseCase;
         this.refreshTokenUseCase = refreshTokenUseCase;
+        this.logoutUseCase = logoutUseCase;
     }
 
     /**
@@ -104,17 +108,20 @@ public class AuthController {
     /**
      * POST /api/v1/auth/refresh
      *
-     * <p>Exchanges a valid refresh token for a new access + refresh pair
-     * (token rotation). Returns 200 on success, 401 on any token failure
-     * (wrong type, tampered, expired), 400 on a missing/blank field.</p>
+     * <p>Exchanges a valid, non-revoked refresh token for a new access + refresh
+     * pair (one-time-use rotation). The supplied refresh token is revoked
+     * server-side in the same transaction, so a replay of it returns 401.
+     * Returns 200 on success, 401 on any token failure (wrong type, tampered,
+     * expired, OR already revoked/rotated), 400 on a missing/blank field.</p>
      */
     @PostMapping("/refresh")
-    @Operation(summary = "Exchange a refresh token for a new token pair",
+    @Operation(summary = "Exchange a refresh token for a new token pair (one-time-use)",
             description = "Validates the supplied refresh token and returns a fresh access "
                     + "token (15 min) and a fresh refresh token (7 days). The new tokens have "
-                    + "new jti claims, so callers can detect rotation. Note: stateless design — "
-                    + "the old refresh token remains valid until its own expiry; one-time-use "
-                    + "refresh would require a server-side token store.")
+                    + "new jti claims. One-time-use rotation: the supplied refresh token is "
+                    + "revoked server-side in the same transaction, so reusing it returns 401. "
+                    + "A revoked token is indistinguishable from an invalid one in the response "
+                    + "(anti-enumeration).")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200",
                     description = "Token pair rotated",
@@ -123,11 +130,46 @@ public class AuthController {
                     description = "Validation failure (missing/blank refreshToken)",
                     content = @Content(schema = @Schema(implementation = com.renan.taskmanager.common.api.ErrorResponse.class))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401",
-                    description = "Invalid refresh token (wrong type, tampered, expired, or not a JWT)",
+                    description = "Invalid refresh token (wrong type, tampered, expired, revoked, or not a JWT)",
                     content = @Content(schema = @Schema(implementation = com.renan.taskmanager.common.api.ErrorResponse.class)))
     })
     public ResponseEntity<TokenResponse> refresh(@Valid @RequestBody RefreshRequest request) {
         TokenResponse response = refreshTokenUseCase.execute(request.refreshToken());
         return ResponseEntity.ok(response);
+    }
+
+    /**
+     * POST /api/v1/auth/logout
+     *
+     * <p>Revokes the supplied refresh token server-side. After logout, the
+     * token cannot be used to mint new pairs via {@code /auth/refresh}
+     * (returns 401). Returns 204 on success (including a second logout of the
+     * same token — idempotent), 401 on any token failure (wrong type, tampered,
+     * expired), 400 on a missing/blank field.</p>
+     *
+     * <p>Access tokens are short-lived (15 min) and not revocable server-side;
+     * the client should drop them locally. This endpoint revokes the long-lived
+     * refresh token, which is the one that matters.</p>
+     */
+    @PostMapping("/logout")
+    @Operation(summary = "Revoke a refresh token (logout)",
+            description = "Records the supplied refresh token as revoked server-side, so it "
+                    + "can no longer be exchanged at /auth/refresh. Idempotent: logging out "
+                    + "the same token twice returns 204 both times. Access tokens are not "
+                    + "revoked (short-lived); the client drops them locally.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "204",
+                    description = "Refresh token revoked (or was already revoked)",
+                    content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400",
+                    description = "Validation failure (missing/blank refreshToken)",
+                    content = @Content(schema = @Schema(implementation = com.renan.taskmanager.common.api.ErrorResponse.class))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401",
+                    description = "Invalid refresh token (wrong type, tampered, expired, or not a JWT)",
+                    content = @Content(schema = @Schema(implementation = com.renan.taskmanager.common.api.ErrorResponse.class)))
+    })
+    public ResponseEntity<Void> logout(@Valid @RequestBody LogoutRequest request) {
+        logoutUseCase.execute(request.refreshToken());
+        return ResponseEntity.noContent().build();
     }
 }

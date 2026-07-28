@@ -18,9 +18,13 @@ Java 21 and Spring Boot 3 following Simplified DDD and TDD.
 ## Highlights
 
 - **Java 21** (records, sealed interfaces, pattern matching) on **Spring Boot 3.3**
-- **Stateless JWT auth** — access token (15 min) + refresh token (7 days, rotated),
-  HS256 with `iss`/`aud` enforcement
-- **Token rotation endpoint** `POST /auth/refresh` — trade a refresh for a new pair
+- **JWT auth with server-side refresh-token revocation** — access token (15 min) +
+  refresh token (7 days, **one-time-use rotation**), HS256 with `iss`/`aud`
+  enforcement; a `revoked_refresh_tokens` table backs rotation and logout
+- **Token rotation endpoint** `POST /auth/refresh` — trade a refresh for a new pair;
+  the old refresh is revoked server-side in the same transaction
+- **Logout endpoint** `POST /auth/logout` — revoke a refresh token server-side;
+  access tokens are short-lived and not revoked (drop them locally)
 - **Anti-enumeration posture** — login, resource lookups, and refresh all collapse
   error variants into a single 401/403 so callers cannot enumerate
 - **Auth-endpoint rate limiting** — per-IP token bucket (10 req/min) on
@@ -135,7 +139,8 @@ All routes are prefixed with `/api/v1`.
 |--------|-----------------------------------|------|----------------------------------------------|
 | POST   | `/auth/register`                  | —    | Register a new user                          |
 | POST   | `/auth/login`                     | —    | Exchange credentials for access + refresh JWT |
-| POST   | `/auth/refresh`                   | —    | Rotate tokens: refresh in → new access + refresh out |
+| POST   | `/auth/refresh`                   | —    | Rotate tokens: refresh in → new access + refresh out (one-time-use) |
+| POST   | `/auth/logout`                    | —    | Revoke a refresh token server-side (logout)         |
 | POST   | `/projects`                       | JWT  | Create a project                             |
 | GET    | `/projects`                       | JWT  | List the caller's projects (paginated)       |
 | GET    | `/projects/{id}`                  | JWT  | Get a project (owner or 403)                 |
@@ -216,9 +221,10 @@ HTML report: `target/pit-reports/index.html`.
 ## Key engineering decisions
 
 Highlights: anti-enumeration (404 collapsed into 403 on authenticated lookups),
-Testcontainers over H2, Flyway-validated schema, stateless JWT with `iss`/`aud`
-enforced in the parser, BCrypt cost 12, PIT mutation testing scoped to the
-domain layer in CI, and an 80% line-coverage gate.
+Testcontainers over H2, Flyway-validated schema, JWT with `iss`/`aud` enforced
+in the parser and one-time-use refresh-token rotation backed by a server-side
+revocation table, BCrypt cost 12, PIT mutation testing scoped to the domain
+layer in CI, and an 80% line-coverage gate.
 
 `AGENTS.md` holds contribution rules and AI-development guardrails.
 [`DECISIONS.md`](DECISIONS.md) is the decision log and accepted-limitations

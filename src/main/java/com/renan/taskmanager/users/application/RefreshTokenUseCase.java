@@ -1,18 +1,24 @@
 package com.renan.taskmanager.users.application;
 
+import com.renan.taskmanager.common.domain.UserId;
 import com.renan.taskmanager.common.security.JwtService;
 import com.renan.taskmanager.users.api.TokenResponse;
 import com.renan.taskmanager.users.domain.InvalidCredentialsException;
+import com.renan.taskmanager.users.domain.RevokedRefreshToken;
+import com.renan.taskmanager.users.domain.RevokedRefreshTokenRepository;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.util.UUID;
 
 /**
  * Application use case: exchange a valid refresh token for a new access +
- * refresh token pair (token rotation).
+ * refresh token pair (token rotation), with one-time-use enforcement.
  *
  * <p><b>Flow:</b></p>
  * <ol>
@@ -20,57 +26,90 @@ import java.util.UUID;
  *       all centralized in {@link JwtService#parseRefreshToken}. Any failure
  *       (bad signature, expired, wrong type, wrong issuer/audience, malformed)
  *       surfaces as {@link JwtException}.</li>
- *   <li>Re-issue a fresh access + refresh pair. The {@code jti} of the new
- *       tokens differs from the original, so callers can detect rotation.</li>
+ *   <li>Look up the token's {@code jti} in {@link RevokedRefreshTokenRepository}.
+ *       If the token has already been rotated out (or revoked by logout),
+ *       reject it. Same {@link InvalidCredentialsException} as a bad token —
+ *       anti-enumeration (see DECISIONS.md #6).</li>
+ *   <li>Re-issue a fresh access + refresh pair (new {@code jti}s).</li>
+ *   <li>Record the OLD refresh token's {@code jti} as revoked, so a replay of
+ *       the old token is rejected on the next {@code /auth/refresh}. This is
+ *       the one-time-use guarantee.</li>
  * </ol>
  *
- * <p><b>Stateless rotation caveat (intentional):</b>
- * Without a server-side token store or blacklist we cannot revoke the
- * presented refresh token the moment it is exchanged. Both the old and the
- * new refresh token remain independently valid until each expires. This is
- * the accepted trade-off of the stateless design — same shape as access
- * tokens — and keeps the API horizontally scalable. If true one-time-use
- * refresh becomes a requirement, a token store (Redis or a DB table) is the
- * canonical next step.</p>
+ * <p><b>One-time-use rotation:</b> the old refresh token is revoked in the same
+ * transaction as the new pair's issuance. A replay of the old token returns
+ * 401. See {@code DECISIONS.md} #17 for the design (PostgreSQL token store
+ * over Redis: no new infra, same transaction atomicity). This closes the
+ * previously-accepted stateless limitation.</p>
  *
  * <p><b>Why {@link InvalidCredentialsException} (→ 401)?</b>
- * Any failure (wrong type, tampered, expired, bad iss/aud, malformed) is
- * conceptually a credentials failure: the caller presented something that
- * is not a valid refresh token. The original JwtException details are
- * intentionally collapsed to a single message — callers must not learn
- * why the token failed. 401 matches both the JWT spec expectation and the
+ * Any failure (wrong type, tampered, expired, bad iss/aud, malformed, OR
+ * revoked) is conceptually a credentials failure: the caller presented
+ * something that is not a valid, usable refresh token. The original
+ * JwtException details are intentionally collapsed to a single message —
+ * callers must not learn whether the token was expired, tampered, revoked,
+ * or the wrong type. 401 matches both the JWT spec expectation and the
  * existing login failure contract.</p>
+ *
+ * <p><b>Why a {@link Clock} dependency?</b> So the {@code revokedAt} timestamp
+ * recorded on rotation is deterministic and injectable in tests. Production
+ * uses {@link Clock#systemUTC()}; tests inject a fixed clock.</p>
  */
 @Service
 public class RefreshTokenUseCase {
 
     private final JwtService jwtService;
+    private final RevokedRefreshTokenRepository revokedTokenRepository;
+    private final Clock clock;
     private final long accessTtlMs;
     private final long refreshTtlMs;
 
     public RefreshTokenUseCase(
             JwtService jwtService,
+            RevokedRefreshTokenRepository revokedTokenRepository,
+            Clock clock,
             @Value("${app.jwt.access-token-expiration-ms:900000}") long accessTtlMs,
             @Value("${app.jwt.refresh-token-expiration-ms:604800000}") long refreshTtlMs
     ) {
         this.jwtService = jwtService;
+        this.revokedTokenRepository = revokedTokenRepository;
+        this.clock = clock;
         this.accessTtlMs = accessTtlMs;
         this.refreshTtlMs = refreshTtlMs;
     }
 
+    @Transactional
     public TokenResponse execute(String refreshToken) {
         Claims claims;
         try {
             claims = jwtService.parseRefreshToken(refreshToken);
         } catch (JwtException e) {
-            // Collapse every failure to the same 401 — anti-enumeration:
+            // Collapse every structural failure to the same 401 — anti-enumeration:
             // callers must not learn whether the token was expired, tampered,
             // or the wrong type.
             throw new InvalidCredentialsException();
         }
 
+        UUID jti = jwtService.extractJti(claims);
+        Instant now = clock.instant();
+
+        // One-time-use / post-logout check. Reuses InvalidCredentialsException
+        // so a revoked token is indistinguishable from a structurally invalid
+        // one — anti-enumeration (DECISIONS.md #6).
+        if (revokedTokenRepository.isRevokedAndActive(jti, now)) {
+            throw new InvalidCredentialsException();
+        }
+
         UUID userId = jwtService.extractUserId(claims);
         String email = jwtService.extractEmail(claims);
+
+        // Record the OLD refresh token as revoked in the SAME transaction as
+        // the new pair's issuance. Atomicity matters: if the new issuance
+        // fails, the old token must remain usable; if the revocation insert
+        // fails, no new tokens are minted.
+        Instant oldExpiry = claims.getExpiration().toInstant();
+        revokedTokenRepository.save(RevokedRefreshToken.reconstitute(
+                jti, UserId.of(userId), now, oldExpiry));
 
         String newAccessToken = jwtService.generateAccessToken(userId, email);
         String newRefreshToken = jwtService.generateRefreshToken(userId, email);
