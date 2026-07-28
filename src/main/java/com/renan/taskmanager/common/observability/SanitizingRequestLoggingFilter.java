@@ -4,6 +4,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import net.logstash.logback.argument.StructuredArguments;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.Ordered;
@@ -28,6 +29,15 @@ import java.util.stream.Collectors;
  * and it dumps the {@code Authorization} header verbatim. Security-conscious
  * services must own their logging pipeline so that secrets can never reach logs.
  * This filter encodes that policy in one auditable place.</p>
+ *
+ * <p><b>Structured arguments ({@link StructuredArguments#kv}):</b> the request
+ * line emits {@code method}/{@code uri}/{@code status}/{@code latencyMs}/
+ * {@code client} as {@code StructuredArgument}s, not interpolated text. Two
+ * payoffs: in dev each renders as {@code key=value} in the human-readable
+ * message; in prod the {@code LogstashEncoder} (see {@code logback-spring.xml},
+ * prod profile) promotes them to first-class JSON fields. This is what makes
+ * logs queryable in Loki/Datadog ({@code status>=500 AND uri=/auth/login})
+ * instead of forcing brittle regex over a flat message string.</p>
  *
  * <p><b>Secret redaction policy:</b>
  * <ul>
@@ -81,12 +91,18 @@ public class SanitizingRequestLoggingFilter extends OncePerRequestFilter {
                             StatusCapturingResponseWrapper response,
                             long latencyMs) {
         if (log.isInfoEnabled()) {
-            log.info("{} {} -> {} ({} ms, client={})",
-                    request.getMethod(),
-                    request.getRequestURI(),
-                    response.getStatus(),
-                    latencyMs,
-                    request.getRemoteAddr());
+            // kv() emits a StructuredArgument that:
+            //   - in dev renders as "key=value" via %msg substitution (readable),
+            //   - in prod is promoted to a JSON field by the LogstashEncoder.
+            // The {} placeholders consume the kv's toString(), so each placeholder
+            // is filled with "key=value" — the message itself carries no duplicate
+            // keys, only the structural arrows/parentheses a human needs.
+            log.info("{} {} -> {} ({} ms, {})",
+                    StructuredArguments.kv("method", request.getMethod()),
+                    StructuredArguments.kv("uri", request.getRequestURI()),
+                    StructuredArguments.kv("status", response.getStatus()),
+                    StructuredArguments.kv("latencyMs", latencyMs),
+                    StructuredArguments.kv("client", request.getRemoteAddr()));
         }
         if (log.isDebugEnabled()) {
             log.debug("Headers: {}", sanitizedHeaders(request));

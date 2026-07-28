@@ -43,7 +43,10 @@ Java 21 and Spring Boot 3 following Simplified DDD and TDD.
 - **Actuator health probe** exposed (no auth) for Docker/K8s
 - **Prometheus metrics** at `/actuator/prometheus` (JWT-protected): HTTP latency
   histograms plus a custom `auth_login_attempts{result=success|failure}` counter
-- **Structured logs** with correlation ids and header redaction
+- **Structured logs** — JSON in prod (Loki/ELK/Datadog-ready, one object per line),
+  human-readable in dev; correlation id and HTTP fields (`method`/`uri`/`status`/
+  `latencyMs`) as first-class JSON fields, with `Authorization`/`Cookie` redaction
+  enforced by a custom filter
 - **BCrypt cost 12** (OWASP 2026), single source of truth
 - **JaCoCo coverage gate** at 80% LINE
 
@@ -61,6 +64,7 @@ Java 21 and Spring Boot 3 following Simplified DDD and TDD.
 | Security         | Spring Security + jjwt 0.12     | Stateless, HS256, access + refresh tokens              |
 | Docs             | springdoc-openapi 2.6           | Swagger UI for dev; disabled in prod                   |
 | Metrics          | Micrometer + Prometheus registry| `/actuator/prometheus` (JWT), latency histograms + login counter |
+| Logging          | Logback + logstash-logback-encoder | JSON in prod (Loki/ELK/Datadog-ready), human-readable in dev; MDC correlation id + structured HTTP fields |
 | Build            | Maven (Java 21)                 | Surefire (unit) + Failsafe (integration)               |
 | Tests            | JUnit 5 + Mockito + AssertJ     | Slices (`@DataJpaTest`) and full-stack (`@SpringBootTest`) |
 | Integration DB   | Testcontainers 1.20             | Real PostgreSQL per run; no H2 dialect surprises       |
@@ -252,8 +256,9 @@ HTML report: `target/pit-reports/index.html`.
 Highlights: anti-enumeration (404 collapsed into 403 on authenticated lookups),
 Testcontainers over H2, Flyway-validated schema, JWT with `iss`/`aud` enforced
 in the parser and one-time-use refresh-token rotation backed by a server-side
-revocation table, BCrypt cost 12, PIT mutation testing scoped to the domain
-layer in CI, and an 80% line-coverage gate.
+revocation table, BCrypt cost 12, structured JSON logging in prod paired with
+Prometheus metrics, PIT mutation testing scoped to the domain layer in CI, and
+an 80% line-coverage gate.
 
 `AGENTS.md` holds contribution rules and AI-development guardrails.
 [`DECISIONS.md`](DECISIONS.md) is the decision log and accepted-limitations
