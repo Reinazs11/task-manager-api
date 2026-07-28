@@ -273,6 +273,46 @@ invisible to the check and only cost storage.
 
 ---
 
+### Decision #18 — Publish Docker image to GHCR on merge to main
+
+**Status:** Accepted (2026-07) — closes issue #8
+
+**Context:** The CI pipeline (`ci.yml`) was test-only: it built, ran unit +
+integration tests, enforced the 80% coverage gate, and ran scoped PIT — but it
+produced no distributable artifact. There was no published Docker image, so a
+reviewer could not `docker pull` the app, and the planned deploy (#5) and
+production metrics (#6) had no image to consume. This is the natural next step
+of project maturity and a core skill for back-end roles.
+
+**Decision:** Add a **separate** workflow, `.github/workflows/docker-publish.yml`,
+rather than extending `ci.yml`. Rationale: single responsibility — `ci.yml`
+remains the source of truth for tests/coverage/mutation; publishing is a release
+stage and should be readable and fail independently. Triggers: push to `main`,
+tags `v*`, and manual `workflow_dispatch`. Tagging strategy (via
+`docker/metadata-action`):
+
+- Push to `main` → `latest`, `main`, and `sha-<short>` (a moving demo plus a
+  per-commit tag for rollback).
+- Tag `v1.2.3` → `1.2.3`, `1.2`, `1` (semver movable tags for releases).
+
+The image is **multi-arch** (`linux/amd64,linux/arm64`) via QEMU + Buildx, so it
+runs on x86 cloud hosts and ARM (Apple Silicon, Graviton). Authentication to
+GHCR uses the automatic `GITHUB_TOKEN` (no PAT created or rotated). Layer cache
+uses `type=gha` to speed up subsequent builds.
+
+**Consequences:** The image is public and pullable
+(`ghcr.io/reinazs11/task-manager-api`), increasing portfolio visibility and
+unblocking #5 and #6. Cost: multi-arch builds add ~5–7 min per run, and the
+first publication creates the package as **private** by default — visibility must
+be flipped to public manually once. The image ships only the **dev** `JWT_SECRET`
+placeholder baked into `application.yml`; the `JwtService` does not reject that
+placeholder (it only enforces the ≥256-bit HMAC length, which the placeholder
+satisfies), so any non-local deployment **must** override `JWT_SECRET`. Image
+signing (cosign/keyless) is intentionally out of scope here; it is a follow-up
+if supply-chain hardening becomes a priority.
+
+---
+
 ## Known limitations (accepted trade-offs)
 
 These are **not bugs** — they are consciously out of scope, with the path to

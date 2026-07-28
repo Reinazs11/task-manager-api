@@ -1,0 +1,92 @@
+name: Docker publish
+
+# Publica a imagem da Task Manager API no GitHub Container Registry (GHCR).
+#
+# Por que um workflow separado do ci.yml: Single Responsibility. O ci.yml é a
+# fonte da verdade de testes/coverage/mutation; este é o stage de release.
+# Assim cada arquivo fica legível e um pode falhar sem derrubar o outro.
+#
+# Estratégia de tags (decision #18):
+#   - Push em main  → latest, main e sha-<short> (demo sempre atualizada + rollback por SHA).
+#   - Tag git v1.2.3 → 1.2.3, 1.2 e 1 (semver móvel para releases).
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  # Gatilho manual para re-publicar a imagem sem precisar abrir PR/tag.
+  # Útil para debug ou para republicar após mudar a visibilidade do package.
+  workflow_dispatch:
+
+# Cancela um run em andamento da mesma branch quando um novo commit chega.
+concurrency:
+  group: docker-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-push:
+    name: Build and push multi-arch image to GHCR
+    runs-on: ubuntu-latest
+    # packages: write é necessário para empurrar a imagem ao GHCR com o
+    # GITHUB_TOKEN automático do workflow (não criamos nem usamos PAT).
+    # contents: read é o padrão seguro para o checkout.
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU (multi-arch emulation)
+        # Instala o emulador que permite a um runner x86 também buildar para
+        # arm64 (Apple Silicon, AWS Graviton). Sem isso, buildx só faria amd64.
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        # Habilita o builder moderno (suporte a cache e multi-plataforma no
+        # mesmo build). Substitui o `docker build` clássico.
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        # Autentica no GHCR com o GITHUB_TOKEN automático. A primeira execução
+        # cria o package automaticamente como privado — ver nota no PR.
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata for Docker
+        # Gera tags e labels declarativamente a partir do evento:
+        #   - push main → type=raw,value=latest + type=sha + type=ref,event=branch
+        #   - tag v1.2.3 → type=semver,pattern={{version}} e variantes móveis
+        # Sem isso, precisaríamos de vários `if` para decidir a tag correta.
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          # Nome lowercase literal: o owner Reinazs11 tem R maiúsculo e o GHCR
+          # exige lowercase. Usar ${{ github.repository }} quebraria por case.
+          images: ghcr.io/reinazs11/task-manager-api
+          tags: |
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=ref,event=branch
+            type=sha,prefix=sha-,format=short
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+
+      - name: Build and push image
+        # Builda para amd64 e arm64, publica com as tags do metadata e ativa
+        # o cache entre runs (type=gha) para acelerar os próximos builds.
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

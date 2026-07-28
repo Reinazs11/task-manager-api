@@ -4,6 +4,7 @@
 [![Java](https://img.shields.io/badge/Java-21-orange)](https://adoptium.net/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.3.x-6DB33F)](https://spring.io/projects/spring-boot)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Docker image](https://img.shields.io/badge/ghcr.io-task--manager--api-blue?logo=docker)](https://github.com/Reinazs11/task-manager-api/pkgs/container/task-manager-api)
 
 REST API for task and project management with JWT authentication, built with
 Java 21 and Spring Boot 3 following Simplified DDD and TDD.
@@ -63,7 +64,7 @@ Java 21 and Spring Boot 3 following Simplified DDD and TDD.
 | Arch tests       | ArchUnit 1.3                    | Layering + cross-context + stereotype + naming rules   |
 | Mutation tests   | PIT 1.16                        | Verifies tests catch real mutations, not just lines    |
 | Coverage         | JaCoCo 0.8                      | 80% gate at `verify`                                   |
-| Containerization | Docker + docker-compose         | One command brings everything up                       |
+| Containerization | Docker + docker-compose         | One command brings everything up; image published to GHCR on merge to main |
 
 ---
 
@@ -185,6 +186,30 @@ docker compose up postgres
 
 Then run `TaskManagerApplication` from your IDE with the `dev` profile.
 Flyway applies the schema on startup; Hibernate validates it.
+
+### Run from the published image
+
+Every merge to `main` publishes a multi-arch image (`amd64` + `arm64`) to the
+GitHub Container Registry. Pull it and run against your own PostgreSQL:
+
+```bash
+docker pull ghcr.io/reinazs11/task-manager-api:latest
+
+docker run -p 8080:8080 \
+  -e SPRING_PROFILES_ACTIVE=prod \
+  -e JWT_SECRET=<your-secret> \
+  -e DB_HOST=<db-host> -e DB_PORT=5432 \
+  -e DB_NAME=<db> -e DB_USER=<user> -e DB_PASSWORD=<password> \
+  ghcr.io/reinazs11/task-manager-api:latest
+```
+
+> The image ships only the **dev** `JWT_SECRET` placeholder baked into
+> `application.yml`. For any non-local deployment you **must** override it with
+> `JWT_SECRET` — never ship the placeholder as the production secret. See
+> decision #18.
+
+Other tags: `sha-<short>` (per-commit, for rollback) and semver (`1.2.3`,
+`1.2`, `1`) on `v*` git tags.
 
 ---
 
