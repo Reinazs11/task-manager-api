@@ -330,63 +330,38 @@ load test (#12) finds I/O contention.
 
 **Status:** Accepted (2026-07) — closes issue #9
 
-**Context:** Create/update/delete operations mutated data with no record of
-who did what, when. For a portfolio targeting companies with any compliance,
-legal, or finance exposure, "who deleted project X on Friday?" must have an
-answer. This is the third pillar of observability alongside #19 (metrics)
-and #20 (logs): logs say *what happened in this request*, metrics say *how
-often/how slow*, audit says *who changed what over time*.
+**Context:** State-changing operations mutated data with no record of who did
+what, when. This is the third observability pillar alongside #19 (metrics) and
+#20 (logs): logs say *what happened in this request*, metrics say *how often*,
+audit says *who changed what over time*.
 
-**Decision:**
-- New `common.audit` context (shared kernel) with a full DDD slice: domain
-  (`AuditEvent`, `AuditAction`, `AuditableEntityType`, `AuditEventId`,
-  `AuditEventRepository`), application (`AuditEventRecorder`,
-  `ListAuditEventsUseCase`, `AuditEventQueryPort`, `CorrelationIdProvider`),
-  infrastructure (`AuditEventEntity`, JPA repo, mapper, `RepositoryImpl`),
-  api (`AuditController`, `AuditEventResponse`). Audit is cross-cutting (both
-  `tasks` and `users` need it); ArchUnit forbids direct `tasks`↔`users` deps,
-  so it lives in `common` like `UserId`.
-- **Atomicity: same transaction (`REQUIRED`).** Each audited use case calls
-  the recorder *after* its mutation succeeds, inside the use case's
-  `@Transactional`. If the tx rolls back, the audit row is discarded too — a
-  failed action leaves no trail claiming it succeeded. This is the
-  "professional default": the audit row is a record of a *committed* fact.
-- **The one exception — `USER_LOGIN_FAILED` uses `REQUIRES_NEW`.** A failed
-  login is the most valuable forensic signal, so its row must survive the
-  `InvalidCredentialsException` that follows. `LoginUseCase` is not
-  `@Transactional`, so `REQUIRES_NEW` opens a fresh tx that commits before
-  the exception propagates. This is a deliberate, documented trade-off: the
-  general rule is same-tx, the security-relevant exception is independent-tx.
-- **Anti-enumeration preserved (#6, #19).** `USER_LOGIN_FAILED` never records
-  an actor id — even when the application knows the userId (wrong password
-  on a valid email). The `AuditEvent` constructor *enforces* this invariant
-  a second time: constructing a `USER_LOGIN_FAILED` with a non-null actor
-  throws. The audit trail cannot become an enumeration oracle.
-- **PII allowlist.** `metadata` is a flat `Map<String,String>` populated only
-  with non-sensitive operational fields chosen by each recorder method
-  (e.g. `{from, to}` for status changes, `{priority}` for task creation).
-  It must never carry request bodies, passwords, emails, or free text.
-- **CorrelationId via a provider, not static MDC reads.** Use cases don't
-  read `MDC.get(...)` directly (that would be empty/untestable in unit
-  tests); they depend on `CorrelationIdProvider`, which is mocked in unit
-  tests and real in IT. The audit row carries the request id so a support
-  engineer can join an event to the structured logs of the same request.
-- **Id assignment by the domain.** `AuditEventEntity.id` has *no*
-  `@GeneratedValue` (unlike `ProjectEntity`/`TaskEntity`). The id is assigned
-  by the domain (`AuditEvent.record` → `AuditEventId.generate`), matching
-  the `RevokedRefreshTokenEntity` precedent and keeping identity meaningful
-  the instant the event is created — before any flush.
-- **Read endpoint `GET /api/v1/audit/events`** is self-scoped: a user sees
-  only their own events (no admin/global read path; limitation [4]). Falls
-  under `SecurityConfig.anyRequest().authenticated()` — no security change.
+**Decision:** A new `common.audit` context (shared kernel, like `UserId` —
+ArchUnit forbids direct `tasks`↔`users` deps) records an immutable
+`audit_events` row for every state-changing operation (project/task CRUD,
+register, login, logout, refresh rotation). The recorder runs inside the use
+case's `@Transactional(REQUIRED)` *after* the mutation succeeds — so if the tx
+rolls back, the audit row is discarded too: the trail records only *committed*
+facts. The single exception is `USER_LOGIN_FAILED`, which runs in
+`REQUIRES_NEW`: a failed login is the most valuable forensic signal, so its row
+must survive the `InvalidCredentialsException` that follows.
 
-**Consequences:** The audit trail is coherent (never records an action that
-rolled back) and forensically complete (failed logins survive). The
-`audit_events` table grows unbounded — see limitation [10] (retention is a
-documented follow-up, not a gap). The same-tx choice means a failing audit
-insert would roll back the business operation; this is acceptable because an
-audit insert only fails on a real integrity error (DB down), at which point
-the business op is failing anyway.
+Anti-enumeration (#6) is preserved two ways: `USER_LOGIN_FAILED` never records
+an actor id (even when the userId is known — wrong password on a valid email),
+and the `AuditEvent` constructor *enforces* this by rejecting a non-null actor
+on that action. `metadata` is a flat allowlisted map of operational fields only
+(`{from,to}` for status changes, `{priority}` for task creation) — never request
+bodies, passwords, or emails. The request correlation id flows in via a
+`CorrelationIdProvider` (not a static `MDC.get` in use cases — that would be
+untestable in unit tests). The read endpoint `GET /audit/events` is self-scoped
+(no admin path; limitation [4]); `AuditEventEntity.id` is domain-assigned with
+no `@GeneratedValue`, matching `RevokedRefreshTokenEntity`.
+
+**Consequences:** The trail is coherent and forensically complete. A failing
+audit insert would roll back the business operation — acceptable, since such an
+insert only fails on a real integrity error (DB down), where the business op is
+failing anyway. The table grows unbounded; retention is a documented follow-up
+(limitation [10]).
+
 
 ---
 
