@@ -54,6 +54,19 @@
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
 
+        <!--
+          Micrometer Prometheus registry. Actuator (above) ships the meter API
+          and /actuator/health, but no Prometheus-compatible exposition. This
+          registry adds the /actuator/prometheus endpoint that exposes every
+          meter in the text exposition format a Prometheus server scrapes.
+          Version managed by the Spring Boot BOM (no explicit version needed).
+          See DECISIONS.md #19.
+        -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
+
         <!-- Banco de dados -->
         <dependency>
             <groupId>org.postgresql</groupId>
