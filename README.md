@@ -41,6 +41,8 @@ Java 21 and Spring Boot 3 following Simplified DDD and TDD.
 - **OpenAPI 3 / Swagger UI** documents every endpoint (disabled in prod)
 - **CORS** env-driven with fail-fast in prod (no silent allow-all)
 - **Actuator health probe** exposed (no auth) for Docker/K8s
+- **Prometheus metrics** at `/actuator/prometheus` (JWT-protected): HTTP latency
+  histograms plus a custom `auth_login_attempts{result=success|failure}` counter
 - **Structured logs** with correlation ids and header redaction
 - **BCrypt cost 12** (OWASP 2026), single source of truth
 - **JaCoCo coverage gate** at 80% LINE
@@ -58,6 +60,7 @@ Java 21 and Spring Boot 3 following Simplified DDD and TDD.
 | Migrations       | Flyway 10                       | Plain SQL, versioned, applied before Hibernate validates |
 | Security         | Spring Security + jjwt 0.12     | Stateless, HS256, access + refresh tokens              |
 | Docs             | springdoc-openapi 2.6           | Swagger UI for dev; disabled in prod                   |
+| Metrics          | Micrometer + Prometheus registry| `/actuator/prometheus` (JWT), latency histograms + login counter |
 | Build            | Maven (Java 21)                 | Surefire (unit) + Failsafe (integration)               |
 | Tests            | JUnit 5 + Mockito + AssertJ     | Slices (`@DataJpaTest`) and full-stack (`@SpringBootTest`) |
 | Integration DB   | Testcontainers 1.20             | Real PostgreSQL per run; no H2 dialect surprises       |
@@ -150,6 +153,7 @@ All routes are prefixed with `/api/v1`.
 | GET    | `/projects/{id}/tasks`            | JWT  | List tasks (filter by `status`, paginated)   |
 | PATCH  | `/tasks/{id}/status`              | JWT  | Transition a task's status (owner or 403)    |
 | GET    | `/actuator/health`                | —    | Liveness/readiness probe (Docker, K8s)       |
+| GET    | `/actuator/prometheus`            | JWT  | Prometheus text exposition (latency, counters)|
 
 Every error returns a single JSON shape:
 `{ timestamp, status, error, message, path, details }`.
