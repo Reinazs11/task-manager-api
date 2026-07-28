@@ -7,6 +7,7 @@ import com.renan.taskmanager.users.domain.InvalidCredentialsException;
 import com.renan.taskmanager.users.domain.PasswordHasher;
 import com.renan.taskmanager.users.domain.User;
 import com.renan.taskmanager.users.domain.UserRepository;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -28,13 +29,25 @@ import java.util.UUID;
  * <p><b>Security note:</b> we never reveal whether the email exists or the
  * password was wrong — same exception, same message, same timing pattern.
  * This prevents user enumeration by attackers.</p>
+ *
+ * <p><b>Metrics note:</b> every attempt increments {@code auth.login.attempts}
+ * with a <b>binary</b> tag {@code result=success|failure}. The failure tag is
+ * identical for "unknown email" and "wrong password" — by design, so the
+ * metric cannot be used to enumerate valid emails (it would leak exactly what
+ * the anti-enumeration above hides). See DECISIONS.md #6 and #19.</p>
  */
 @Service
 public class LoginUseCase {
 
+    static final String LOGIN_ATTEMPTS_METRIC = "auth.login.attempts";
+    static final String RESULT_TAG = "result";
+    static final String RESULT_SUCCESS = "success";
+    static final String RESULT_FAILURE = "failure";
+
     private final UserRepository userRepository;
     private final PasswordHasher passwordHasher;
     private final JwtService jwtService;
+    private final MeterRegistry meterRegistry;
     private final long accessTtlMs;
     private final long refreshTtlMs;
 
@@ -42,12 +55,14 @@ public class LoginUseCase {
             UserRepository userRepository,
             PasswordHasher passwordHasher,
             JwtService jwtService,
+            MeterRegistry meterRegistry,
             @Value("${app.jwt.access-token-expiration-ms:900000}") long accessTtlMs,
             @Value("${app.jwt.refresh-token-expiration-ms:604800000}") long refreshTtlMs
     ) {
         this.userRepository = userRepository;
         this.passwordHasher = passwordHasher;
         this.jwtService = jwtService;
+        this.meterRegistry = meterRegistry;
         this.accessTtlMs = accessTtlMs;
         this.refreshTtlMs = refreshTtlMs;
     }
@@ -56,10 +71,10 @@ public class LoginUseCase {
         Email emailVo = new Email(email);
 
         User user = userRepository.findByEmail(emailVo)
-                .orElseThrow(InvalidCredentialsException::new);
+                .orElseThrow(this::recordFailureAndThrow);
 
         if (!passwordHasher.matches(plainPassword, user.getPassword().value())) {
-            throw new InvalidCredentialsException();
+            throw recordFailureAndThrow();
         }
 
         UUID userId = user.getId().value();
@@ -68,6 +83,16 @@ public class LoginUseCase {
         String accessToken = jwtService.generateAccessToken(userId, userEmail);
         String refreshToken = jwtService.generateRefreshToken(userId, userEmail);
 
+        recordSuccess();
         return TokenResponse.of(accessToken, refreshToken, accessTtlMs, refreshTtlMs);
+    }
+
+    private void recordSuccess() {
+        meterRegistry.counter(LOGIN_ATTEMPTS_METRIC, RESULT_TAG, RESULT_SUCCESS).increment();
+    }
+
+    private InvalidCredentialsException recordFailureAndThrow() {
+        meterRegistry.counter(LOGIN_ATTEMPTS_METRIC, RESULT_TAG, RESULT_FAILURE).increment();
+        return new InvalidCredentialsException();
     }
 }

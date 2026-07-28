@@ -38,17 +38,34 @@ spring:
 server:
   port: ${SERVER_PORT:8080}
 
-# Actuator: apenas o health endpoint exposto (readiness/liveness para Docker/K8s).
+# Actuator: expõe health (liveness/readiness público) e prometheus (métricas, JWT).
 # Nunca expor /env, /beans, /heapdump etc. em qualquer perfil — vazamento de config.
+# /actuator/prometheus é protegido por JWT (cai em anyRequest().authenticated()
+# no SecurityConfig — ver DECISIONS.md #19). Apenas /actuator/health é permitAll.
 management:
   endpoints:
     web:
       exposure:
-        include: health
+        include: health,prometheus
   endpoint:
     health:
       # Não expor detalhes (componentes, discos, etc.) sem auth — só o status UP/DOWN.
       show-details: never
+  # Prometheus registry. A chave é registry-first
+  # (management.<registry>.metrics.export.enabled), NÃO metrics-first — ver
+  # OnMetricsExportEnabledCondition.getProductOutcome(). Explicitamos para deixar
+  # a intenção visível e blindar contra um default global sendo false.
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+  metrics:
+    distribution:
+      # Histograma para http.server.requests: habilita buckets no Prometheus
+      # exposition, permitindo calcular p95/p99 com histogram_quantile() server-side.
+      # Sem isto o registry publica apenas sum/count (média), insuficiente para SLOs.
+      percentiles-histogram:
+        http.server.requests: true
 
 # Documentação OpenAPI
 springdoc:

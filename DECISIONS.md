@@ -111,13 +111,15 @@ two independent encoders.
 `springdoc.api-docs.enabled=false`. Internal docs must not leak to the public
 internet.
 
-### 12. Actuator: only `/actuator/health` exposed
-**Status:** Accepted (2026-07)
+### 12. Actuator: `/actuator/health` and `/actuator/prometheus` exposed
+**Status:** Accepted (2026-07) — updated (2026-07) for Prometheus (see #19)
 
-`management.endpoints.web.exposure.include=health` and
+`management.endpoints.web.exposure.include=health,prometheus` and
 `endpoint.health.show-details=never`. Liveness/readiness for Docker/K8s without
-leaking env, beans, heap dumps, or component details. The endpoint is public
-(no JWT) so probes work.
+leaking env, beans, heap dumps, or component details. `/actuator/health` is
+public (no JWT) so probes work; `/actuator/prometheus` is JWT-protected (it
+falls under `SecurityConfig`'s `anyRequest().authenticated()`). Everything
+else stays unexposed.
 
 ### 13. PIT mutation testing scoped to the domain layer in CI
 **Status:** Accepted (2026-07)
@@ -244,6 +246,47 @@ unblocking #5 and #6. Cost: ~5–7 min multi-arch per run; the first publish is
 only the dev `JWT_SECRET` placeholder (the `JwtService` enforces only the
 ≥256-bit HMAC length, which the placeholder satisfies), so non-local deploys
 **must** override `JWT_SECRET`. Image signing (cosign) is out of scope.
+
+### Decision #19 — Prometheus metrics via Micrometer (JWT-protected endpoint + binary login counter)
+
+**Status:** Accepted (2026-07) — closes issue #6
+
+**Context:** The app had a health probe and structured logs but no metrics —
+nothing answered "is the API slow before a user complains?" The GHCR image
+(#18) unblocked this: a reviewer can now `docker pull`, run, and scrape.
+
+**Decision:**
+- Add `micrometer-registry-prometheus`; expose `/actuator/prometheus`
+  (`management.endpoints.web.exposure.include=health,prometheus`).
+- Enable `percentiles-histogram` for `http.server.requests` so p95/p99 are
+  computed server-side via `histogram_quantile()` (a flat sum/count only
+  gives the mean, useless for SLOs).
+- `/actuator/prometheus` is **JWT-protected**, not public like `/health`. It
+  falls under `SecurityConfig`'s `anyRequest().authenticated()` with no
+  `permitAll` matcher. A scraper must send a bearer token. Chosen over
+  "public like /health" because the portfolio value is in documenting a
+  defensible posture (metrics are operational, not a public contract); a
+  reviewer reads "protected" as a conscious trade-off, not an oversight.
+- Custom counter `auth.login.attempts` with a **binary** tag
+  `result=success|failure`. The failure tag is identical for "unknown email"
+  and "wrong password" — a per-reason tag would let an attacker enumerate
+  valid emails by reading `/actuator/prometheus`, defeating the
+  anti-enumeration already enforced in `LoginUseCase` (#6).
+
+**Gotcha learned (registry-first key):** the auto-config
+`PrometheusMetricsExportAutoConfiguration` is gated by
+`@ConditionalOnEnabledMetricsExport("prometheus")`, which reads the key
+`management.prometheus.metrics.export.enabled` (**registry-first**), not
+`management.metrics.export.prometheus.enabled` (metrics-first). With the
+wrong shape, no `PrometheusMeterRegistry` bean is created and
+`/actuator/prometheus` returns 404. The key is set explicitly in
+`application.yml` to make the intent visible and to bind the contract.
+
+**Consequences:** Prometheus can now scrape request rate, latency percentiles,
+JDBC pool usage, and login success/failure ratio. Cost: a scraper needs a
+static/long-lived bearer token (the access-token TTL of 15 min makes scrape
+config awkward — a future deploy may mint a dedicated metrics token). The
+login counter does NOT split by failure reason by design.
 
 ---
 
