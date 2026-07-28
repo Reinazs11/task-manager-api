@@ -47,6 +47,12 @@ Java 21 and Spring Boot 3 following Simplified DDD and TDD.
   human-readable in dev; correlation id and HTTP fields (`method`/`uri`/`status`/
   `latencyMs`) as first-class JSON fields, with `Authorization`/`Cookie` redaction
   enforced by a custom filter
+- **Audit trail** — every state-changing operation (project/task CRUD, register,
+  login, logout, refresh rotation) records an immutable `audit_events` row in the
+  **same transaction** as the business change (a rollback discards the audit row);
+  failed logins are the deliberate exception, persisted in their own tx so the
+  forensic record survives. `USER_LOGIN_FAILED` never carries an actor id
+  (anti-enumeration). Self-scoped read endpoint `GET /audit/events` (DECISIONS.md #21)
 - **BCrypt cost 12** (OWASP 2026), single source of truth
 - **JaCoCo coverage gate** at 80% LINE
 
@@ -156,6 +162,7 @@ All routes are prefixed with `/api/v1`.
 | POST   | `/projects/{id}/tasks`            | JWT  | Create a task inside a project (owner or 403)|
 | GET    | `/projects/{id}/tasks`            | JWT  | List tasks (filter by `status`, paginated)   |
 | PATCH  | `/tasks/{id}/status`              | JWT  | Transition a task's status (owner or 403)    |
+| GET    | `/audit/events`                   | JWT  | List the caller's own audit trail (filter by `action`, paginated) |
 | GET    | `/actuator/health`                | —    | Liveness/readiness probe (Docker, K8s)       |
 | GET    | `/actuator/prometheus`            | JWT  | Prometheus text exposition (latency, counters)|
 
