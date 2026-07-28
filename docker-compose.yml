@@ -28,6 +28,10 @@ services:
       - taskmanager-net
 
   app:
+    # Em dev, buildamos a imagem localmente (decisão abaixo). Para rodar a
+    # imagem publicada no GHCR (decision #18) em vez de buildar, comente o
+    # bloco `build:` e use:
+    #   image: ghcr.io/reinazs11/task-manager-api:latest
     build:
       context: .
       dockerfile: Dockerfile
