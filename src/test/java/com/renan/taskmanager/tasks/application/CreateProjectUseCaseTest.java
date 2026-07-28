@@ -1,5 +1,6 @@
 package com.renan.taskmanager.tasks.application;
 
+import com.renan.taskmanager.common.audit.application.AuditEventRecorder;
 import com.renan.taskmanager.tasks.domain.Project;
 import com.renan.taskmanager.tasks.domain.ProjectRepository;
 import com.renan.taskmanager.common.domain.UserId;
@@ -12,6 +13,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -21,6 +23,9 @@ class CreateProjectUseCaseTest {
 
     @Mock
     private ProjectRepository projectRepository;
+
+    @Mock
+    private AuditEventRecorder auditRecorder;
 
     @InjectMocks
     private CreateProjectUseCase useCase;
@@ -35,6 +40,8 @@ class CreateProjectUseCaseTest {
 
         assertThat(result.getOwnerId()).isEqualTo(owner);
         assertThat(result.getName().value()).isEqualTo("My Project");
+        // Audit row is recorded after the save, scoped to the owner + new id.
+        verify(auditRecorder).recordProjectCreated(eq(owner), eq(result.getId().value()));
     }
 
     /**
@@ -49,6 +56,7 @@ class CreateProjectUseCaseTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Project name cannot be null");
         verify(projectRepository, never()).save(any());
+        verify(auditRecorder, never()).recordProjectCreated(any(), any());
     }
 
     @Test
@@ -59,6 +67,7 @@ class CreateProjectUseCaseTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Project name cannot be blank");
         verify(projectRepository, never()).save(any());
+        verify(auditRecorder, never()).recordProjectCreated(any(), any());
     }
 
     @Test
@@ -70,5 +79,6 @@ class CreateProjectUseCaseTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("200");
         verify(projectRepository, never()).save(any());
+        verify(auditRecorder, never()).recordProjectCreated(any(), any());
     }
 }

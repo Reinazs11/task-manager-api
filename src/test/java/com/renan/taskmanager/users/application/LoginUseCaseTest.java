@@ -1,5 +1,7 @@
 package com.renan.taskmanager.users.application;
 
+import com.renan.taskmanager.common.audit.application.AuditEventRecorder;
+import com.renan.taskmanager.common.domain.UserId;
 import com.renan.taskmanager.common.security.JwtService;
 import com.renan.taskmanager.users.api.TokenResponse;
 import com.renan.taskmanager.users.domain.Email;
@@ -55,6 +57,9 @@ class LoginUseCaseTest {
     @Mock
     private PasswordHasher passwordHasher;
 
+    @Mock
+    private AuditEventRecorder auditRecorder;
+
     // Real MeterRegistry (not mocked): we want to assert the counter is actually
     // incremented and carries the right tag — mocking it would test nothing.
     private MeterRegistry meterRegistry;
@@ -72,7 +77,7 @@ class LoginUseCaseTest {
         jwtService = new JwtService(TEST_SECRET, ACCESS_TTL_MS, REFRESH_TTL_MS,
                 "task-manager-api", "task-manager-api-users");
         useCase = new LoginUseCase(userRepository, passwordHasher, jwtService,
-                meterRegistry, ACCESS_TTL_MS, REFRESH_TTL_MS);
+                meterRegistry, auditRecorder, ACCESS_TTL_MS, REFRESH_TTL_MS);
     }
 
     @Nested

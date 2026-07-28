@@ -1,5 +1,6 @@
 package com.renan.taskmanager.tasks.application;
 
+import com.renan.taskmanager.common.audit.application.AuditEventRecorder;
 import com.renan.taskmanager.tasks.domain.*;
 import com.renan.taskmanager.tasks.domain.Project;
 import com.renan.taskmanager.tasks.domain.Task;
@@ -21,10 +22,13 @@ public class CreateTaskUseCase {
 
     private final ProjectRepository projectRepository;
     private final TaskRepository taskRepository;
+    private final AuditEventRecorder auditRecorder;
 
-    public CreateTaskUseCase(ProjectRepository projectRepository, TaskRepository taskRepository) {
+    public CreateTaskUseCase(ProjectRepository projectRepository, TaskRepository taskRepository,
+                             AuditEventRecorder auditRecorder) {
         this.projectRepository = projectRepository;
         this.taskRepository = taskRepository;
+        this.auditRecorder = auditRecorder;
     }
 
     @Transactional
@@ -43,6 +47,12 @@ public class CreateTaskUseCase {
             task.changePriority(priority);
         }
 
-        return taskRepository.save(task);
+        Task saved = taskRepository.save(task);
+        // Record after the save, inside the same tx. The priority in metadata
+        // reflects what was actually persisted (the override above, or the
+        // Task default). Allowlisted: operational, non-sensitive.
+        auditRecorder.recordTaskCreated(requesterId, saved.getId().value(),
+                saved.getPriority().name());
+        return saved;
     }
 }

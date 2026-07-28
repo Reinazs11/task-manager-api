@@ -1,5 +1,6 @@
 package com.renan.taskmanager.users.application;
 
+import com.renan.taskmanager.common.audit.application.AuditEventRecorder;
 import com.renan.taskmanager.common.domain.UserId;
 import com.renan.taskmanager.common.security.JwtService;
 import com.renan.taskmanager.users.api.TokenResponse;
@@ -61,6 +62,7 @@ public class RefreshTokenUseCase {
     private final JwtService jwtService;
     private final RevokedRefreshTokenRepository revokedTokenRepository;
     private final Clock clock;
+    private final AuditEventRecorder auditRecorder;
     private final long accessTtlMs;
     private final long refreshTtlMs;
 
@@ -68,12 +70,14 @@ public class RefreshTokenUseCase {
             JwtService jwtService,
             RevokedRefreshTokenRepository revokedTokenRepository,
             Clock clock,
+            AuditEventRecorder auditRecorder,
             @Value("${app.jwt.access-token-expiration-ms:900000}") long accessTtlMs,
             @Value("${app.jwt.refresh-token-expiration-ms:604800000}") long refreshTtlMs
     ) {
         this.jwtService = jwtService;
         this.revokedTokenRepository = revokedTokenRepository;
         this.clock = clock;
+        this.auditRecorder = auditRecorder;
         this.accessTtlMs = accessTtlMs;
         this.refreshTtlMs = refreshTtlMs;
     }
@@ -113,6 +117,11 @@ public class RefreshTokenUseCase {
 
         String newAccessToken = jwtService.generateAccessToken(userId, email);
         String newRefreshToken = jwtService.generateRefreshToken(userId, email);
+
+        // Record the rotation inside the same tx. A refresh rotation is a
+        // security-relevant event (the caller proved possession of a valid
+        // refresh token) and the actor is the token's subject.
+        auditRecorder.recordRefreshRotated(UserId.of(userId));
 
         return TokenResponse.of(newAccessToken, newRefreshToken, accessTtlMs, refreshTtlMs);
     }

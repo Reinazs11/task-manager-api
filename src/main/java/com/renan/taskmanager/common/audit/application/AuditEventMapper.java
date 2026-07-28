@@ -40,7 +40,7 @@ public interface AuditEventMapper {
                 .actorId(event.actorId().map(UserId::value).orElse(null))
                 .action(AuditActionEntity.valueOf(event.action().name()))
                 .entityType(AuditableEntityTypeEntity.valueOf(event.entityType().name()))
-                .entityId(event.entityId().map(UserId::value).orElse(null))
+                .entityId(event.entityId().orElse(null))
                 .occurredAt(event.occurredAt())
                 .correlationId(event.correlationId().orElse(null))
                 .metadata(Map.copyOf(event.metadata()))
@@ -54,13 +54,12 @@ public interface AuditEventMapper {
      */
     default AuditEvent toDomain(AuditEventEntity entity) {
         UserId actor = Optional.ofNullable(entity.getActorId()).map(UserId::of).orElse(null);
-        UserId target = Optional.ofNullable(entity.getEntityId()).map(UserId::of).orElse(null);
         return AuditEvent.reconstitute(
                 AuditEventId.of(entity.getId()),
                 actor,
                 AuditAction.valueOf(entity.getAction().name()),
                 AuditableEntityType.valueOf(entity.getEntityType().name()),
-                target,
+                entity.getEntityId(),
                 entity.getOccurredAt(),
                 entity.getCorrelationId(),
                 entity.getMetadata() == null ? Map.of() : entity.getMetadata()

@@ -1,5 +1,6 @@
 package com.renan.taskmanager.users.application;
 
+import com.renan.taskmanager.common.audit.application.AuditEventRecorder;
 import com.renan.taskmanager.users.api.UserResponse;
 import com.renan.taskmanager.users.domain.Email;
 import com.renan.taskmanager.users.domain.Password;
@@ -37,10 +38,13 @@ public class RegisterUserUseCase {
 
     private final UserRepository userRepository;
     private final PasswordHasher passwordHasher;
+    private final AuditEventRecorder auditRecorder;
 
-    public RegisterUserUseCase(UserRepository userRepository, PasswordHasher passwordHasher) {
+    public RegisterUserUseCase(UserRepository userRepository, PasswordHasher passwordHasher,
+                               AuditEventRecorder auditRecorder) {
         this.userRepository = userRepository;
         this.passwordHasher = passwordHasher;
+        this.auditRecorder = auditRecorder;
     }
 
     @Transactional
@@ -59,6 +63,11 @@ public class RegisterUserUseCase {
         // the hash bypasses strength validation (it would fail otherwise).
         User user = User.create(emailVo, Password.fromHash(hash), name);
         User saved = userRepository.save(user);
+
+        // Record registration. The new user is BOTH the actor and the entity
+        // (they created themselves). Inside the tx: a duplicate-email rollback
+        // (caught by the unique constraint) discards this row too.
+        auditRecorder.recordUserRegistered(saved.getId());
 
         return new UserResponse(
                 saved.getId().value(),

@@ -1,5 +1,6 @@
 package com.renan.taskmanager.users.application;
 
+import com.renan.taskmanager.common.audit.application.AuditEventRecorder;
 import com.renan.taskmanager.common.domain.UserId;
 import com.renan.taskmanager.common.security.JwtService;
 import com.renan.taskmanager.users.domain.InvalidCredentialsException;
@@ -56,13 +57,16 @@ public class LogoutUseCase {
     private final JwtService jwtService;
     private final RevokedRefreshTokenRepository revokedTokenRepository;
     private final Clock clock;
+    private final AuditEventRecorder auditRecorder;
 
     public LogoutUseCase(JwtService jwtService,
                          RevokedRefreshTokenRepository revokedTokenRepository,
-                         Clock clock) {
+                         Clock clock,
+                         AuditEventRecorder auditRecorder) {
         this.jwtService = jwtService;
         this.revokedTokenRepository = revokedTokenRepository;
         this.clock = clock;
+        this.auditRecorder = auditRecorder;
     }
 
     @Transactional
@@ -82,5 +86,8 @@ public class LogoutUseCase {
 
         revokedTokenRepository.save(RevokedRefreshToken.reconstitute(
                 jti, UserId.of(userId), clock.instant(), expiresAt));
+        // Record after the revoke, inside the same tx. A logout is a security
+        // signal worth keeping: "who explicitly ended their session, when".
+        auditRecorder.recordLogout(UserId.of(userId));
     }
 }

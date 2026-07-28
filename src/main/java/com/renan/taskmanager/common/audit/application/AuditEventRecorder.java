@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * The single entry point through which use cases record audit events.
@@ -63,13 +64,13 @@ public class AuditEventRecorder {
     }
 
     @Transactional(propagation = Propagation.REQUIRED)
-    public void recordProjectCreated(UserId actor, UserId projectId) {
+    public void recordProjectCreated(UserId actor, UUID projectId) {
         repository.save(build(actor, AuditAction.PROJECT_CREATED,
                 AuditableEntityType.PROJECT, projectId, Map.of()));
     }
 
     @Transactional(propagation = Propagation.REQUIRED)
-    public void recordProjectDeleted(UserId actor, UserId projectId) {
+    public void recordProjectDeleted(UserId actor, UUID projectId) {
         repository.save(build(actor, AuditAction.PROJECT_DELETED,
                 AuditableEntityType.PROJECT, projectId, Map.of()));
     }
@@ -79,7 +80,7 @@ public class AuditEventRecorder {
      *                 Operational and non-sensitive; allowlisted by design.
      */
     @Transactional(propagation = Propagation.REQUIRED)
-    public void recordTaskCreated(UserId actor, UserId taskId, String priority) {
+    public void recordTaskCreated(UserId actor, UUID taskId, String priority) {
         repository.save(build(actor, AuditAction.TASK_CREATED,
                 AuditableEntityType.TASK, taskId, Map.of("priority", priority)));
     }
@@ -89,7 +90,7 @@ public class AuditEventRecorder {
      * @param to   the task's status after the transition
      */
     @Transactional(propagation = Propagation.REQUIRED)
-    public void recordTaskStatusChanged(UserId actor, UserId taskId, String from, String to) {
+    public void recordTaskStatusChanged(UserId actor, UUID taskId, String from, String to) {
         repository.save(build(actor, AuditAction.TASK_STATUS_CHANGED,
                 AuditableEntityType.TASK, taskId, Map.of("from", from, "to", to)));
     }
@@ -101,7 +102,7 @@ public class AuditEventRecorder {
     @Transactional(propagation = Propagation.REQUIRED)
     public void recordUserRegistered(UserId newUserId) {
         repository.save(build(newUserId, AuditAction.USER_REGISTERED,
-                AuditableEntityType.USER, newUserId, Map.of()));
+                AuditableEntityType.USER, newUserId.value(), Map.of()));
     }
 
     @Transactional(propagation = Propagation.REQUIRED)
@@ -135,7 +136,7 @@ public class AuditEventRecorder {
     }
 
     private AuditEvent build(UserId actor, AuditAction action,
-                             AuditableEntityType entityType, UserId entityId,
+                             AuditableEntityType entityType, UUID entityId,
                              Map<String, String> metadata) {
         return AuditEvent.record(actor, action, entityType, entityId, clock,
                 correlationIdProvider.current().orElse(null), metadata);

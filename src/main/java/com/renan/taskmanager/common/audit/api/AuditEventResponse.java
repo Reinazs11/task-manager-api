@@ -31,7 +31,7 @@ public record AuditEventResponse(
                 event.id().value(),
                 event.action().name(),
                 event.entityType().name(),
-                event.entityId().map(com.renan.taskmanager.common.domain.UserId::value).orElse(null),
+                event.entityId().orElse(null),
                 event.occurredAt(),
                 event.correlationId().orElse(null),
                 event.metadata()

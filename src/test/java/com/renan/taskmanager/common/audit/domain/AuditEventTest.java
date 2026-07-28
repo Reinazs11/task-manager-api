@@ -28,7 +28,7 @@ class AuditEventTest {
     private static final Clock CLOCK = Clock.fixed(NOW, ZoneOffset.UTC);
 
     private static final UserId ACTOR = UserId.of(UUID.fromString("00000000-0000-0000-0000-000000000001"));
-    private static final UserId ENTITY = UserId.of(UUID.fromString("00000000-0000-0000-0000-000000000002"));
+    private static final UUID ENTITY = UUID.fromString("00000000-0000-0000-0000-000000000002");
     private static final String CORRELATION = "req-123";
 
     @Nested

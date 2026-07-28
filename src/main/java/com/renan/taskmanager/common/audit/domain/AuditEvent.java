@@ -8,6 +8,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * An immutable record that <b>some actor performed a state-changing operation
@@ -51,7 +52,7 @@ public final class AuditEvent {
     private final UserId actorId;
     private final AuditAction action;
     private final AuditableEntityType entityType;
-    private final UserId entityId;
+    private final UUID entityId;
     private final Instant occurredAt;
     private final String correlationId;
     private final Map<String, String> metadata;
@@ -60,7 +61,7 @@ public final class AuditEvent {
                        UserId actorId,
                        AuditAction action,
                        AuditableEntityType entityType,
-                       UserId entityId,
+                       UUID entityId,
                        Instant occurredAt,
                        String correlationId,
                        Map<String, String> metadata) {
@@ -101,9 +102,10 @@ public final class AuditEvent {
      *                      throws {@link NullPointerException}.
      * @param action        what happened
      * @param entityType    the kind of entity the action concerns
-     * @param entityId      the affected entity's id, or {@code null} when the
-     *                      action has no single entity target
-     *                      (login/logout/refresh)
+     * @param entityId      the affected entity's id (a raw UUID; the
+     *                      {@code entityType} says whether it is a project,
+     *                      task or user), or {@code null} when the action has
+     *                      no single entity target (login/logout/refresh)
      * @param clock         source of {@code occurredAt}; never null
      * @param correlationId the request correlation id for log join, or
      *                      {@code null} if the call is not HTTP-bound
@@ -113,7 +115,7 @@ public final class AuditEvent {
     public static AuditEvent record(UserId actorId,
                                     AuditAction action,
                                     AuditableEntityType entityType,
-                                    UserId entityId,
+                                    UUID entityId,
                                     Clock clock,
                                     String correlationId,
                                     Map<String, String> metadata) {
@@ -136,7 +138,7 @@ public final class AuditEvent {
                                           UserId actorId,
                                           AuditAction action,
                                           AuditableEntityType entityType,
-                                          UserId entityId,
+                                          UUID entityId,
                                           Instant occurredAt,
                                           String correlationId,
                                           Map<String, String> metadata) {
@@ -160,7 +162,16 @@ public final class AuditEvent {
         return entityType;
     }
 
-    public Optional<UserId> entityId() {
+    /**
+     * The id of the affected entity (project/task/user), or empty when the
+     * action has no single target (login/logout/refresh).
+     *
+     * <p>Typed as {@link UUID} rather than a domain id VO on purpose: the
+     * entity the event concerns can be a project, a task, or a user, and each
+     * has its own id type. Binding to one would be a lie; the raw UUID plus
+     * {@link #entityType()} is the honest representation.</p>
+     */
+    public Optional<UUID> entityId() {
         return Optional.ofNullable(entityId);
     }
 

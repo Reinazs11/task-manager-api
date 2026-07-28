@@ -81,7 +81,7 @@ class AuditEventRecorderTest {
         @DisplayName("recordProjectCreated → PROJECT_CREATED on PROJECT with the project id")
         void shouldRecordProjectCreated() {
             UserId actor = UserId.generate();
-            UserId projectId = UserId.generate();
+            UUID projectId = UUID.randomUUID();
 
             recorder.recordProjectCreated(actor, projectId);
 
@@ -99,7 +99,7 @@ class AuditEventRecorderTest {
         @DisplayName("recordProjectDeleted → PROJECT_DELETED with the project id")
         void shouldRecordProjectDeleted() {
             UserId actor = UserId.generate();
-            UserId projectId = UserId.generate();
+            UUID projectId = UUID.randomUUID();
 
             recorder.recordProjectDeleted(actor, projectId);
 
@@ -117,7 +117,7 @@ class AuditEventRecorderTest {
         @DisplayName("recordTaskCreated → TASK_CREATED with priority in metadata only")
         void shouldRecordTaskCreated() {
             UserId actor = UserId.generate();
-            UserId taskId = UserId.generate();
+            UUID taskId = UUID.randomUUID();
 
             recorder.recordTaskCreated(actor, taskId, "HIGH");
 
@@ -131,7 +131,7 @@ class AuditEventRecorderTest {
         @DisplayName("recordTaskStatusChanged → metadata has exactly {from, to}")
         void shouldRecordTaskStatusChanged() {
             UserId actor = UserId.generate();
-            UserId taskId = UserId.generate();
+            UUID taskId = UUID.randomUUID();
 
             recorder.recordTaskStatusChanged(actor, taskId, "TODO", "IN_PROGRESS");
 
@@ -158,7 +158,7 @@ class AuditEventRecorderTest {
             AuditEvent event = captureSaved();
             assertThat(event.action()).isEqualTo(AuditAction.USER_REGISTERED);
             assertThat(event.actorId()).contains(newUserId);
-            assertThat(event.entityId()).contains(newUserId);
+            assertThat(event.entityId()).contains(newUserId.value());
         }
 
         @Test
