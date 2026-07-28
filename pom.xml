@@ -29,6 +29,7 @@
         <pitest.version>1.16.1</pitest.version>
         <pitest-junit5.version>1.2.1</pitest-junit5.version>
         <bucket4j.version>8.10.1</bucket4j.version>
+        <logstash-logback.version>8.1</logstash-logback.version>
     </properties>
 
     <dependencies>
@@ -65,6 +66,24 @@
         <dependency>
             <groupId>io.micrometer</groupId>
             <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
+
+        <!--
+          Structured JSON logging for the prod profile (see DECISIONS.md #20).
+          logstash-logback-encoder is the de-facto choice; it ships the
+          LogstashEncoder that serializes every log event (message + MDC +
+          structured arguments) to a single JSON object per line.
+
+          Pinned to 8.x on purpose: 9.0 migrated to Jackson 3, which is
+          incompatible with the Jackson 2.x that Spring Boot 3.3 manages.
+          8.1 targets Logback 1.5.x (the version Boot 3.3 ships) and Java 11+.
+          Dev keeps human-readable logs (DX); prod emits JSON that
+          Loki/ELK/Datadog can ingest without regex parsing.
+        -->
+        <dependency>
+            <groupId>net.logstash.logback</groupId>
+            <artifactId>logstash-logback-encoder</artifactId>
+            <version>${logstash-logback.version}</version>
         </dependency>
 
         <!-- Banco de dados -->

@@ -288,6 +288,42 @@ static/long-lived bearer token (the access-token TTL of 15 min makes scrape
 config awkward — a future deploy may mint a dedicated metrics token). The
 login counter does NOT split by failure reason by design.
 
+### Decision #20 — Structured JSON logging in prod (logstash-logback-encoder)
+
+**Status:** Accepted (2026-07) — closes issue #10
+
+**Context:** Plain-text logs are unparseable in production aggregators (Loki,
+ELK, Datadog): fields can't be queried and the correlation id is buried in the
+message string. Pairs with #19 — logs say *what happened*, metrics say *how
+often/how slow*.
+
+**Decision:**
+- `logstash-logback-encoder` **pinned to 8.1, not 9.0**: 9.0 migrated to
+  Jackson 3, incompatible with the Jackson 2.x that Spring Boot 3.3 manages.
+- Profile split in `logback-spring.xml`: `dev`/`test` keep human-readable
+  output (DX); only `prod` switches to a `LogstashEncoder` appender.
+- MDC `requestId` → JSON field **`correlationId`** (the name aggregators index
+  by default). The internal MDC key is unchanged — no break to
+  `CorrelationIdFilter`, the dev `%X{requestId}` pattern, or existing tests.
+- HTTP context (`method`/`uri`/`status`/`latencyMs`/`client`) emitted as
+  `StructuredArguments.kv(...)`: readable `key=value` in dev, promoted to
+  JSON fields in prod. This is what makes request logs queryable.
+- Secret redaction lives in `SanitizingRequestLoggingFilter`, upstream of the
+  encoder — switching to JSON does not weaken it. The encoder never sees raw
+  headers.
+- JSON is tested two ways because `ListAppender` captures events *before*
+  encoding and never sees JSON: `StructuredLoggingEncoderTest` drives the
+  encoder in isolation to assert the serialized output;
+  `StructuredLoggingProdProfileIT` parses the XML to assert the prod block
+  references a `LogstashEncoder` (it reads the file, not the runtime
+  `LoggerContext`, which is a JVM singleton reused across ITs and reflects
+  whichever profile won the cache race).
+
+**Consequences:** Prod logs are machine-parseable; dev readability is
+preserved. The 9.0 upgrade is deferred until Spring Boot adopts Jackson 3.
+Logging stays synchronous (request thread) — async is a follow-up only if the
+load test (#12) finds I/O contention.
+
 ---
 
 ## Known limitations (accepted trade-offs)
