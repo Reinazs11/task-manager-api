@@ -1,5 +1,6 @@
 package com.renan.taskmanager.users.application;
 
+import com.renan.taskmanager.common.audit.application.AuditEventRecorder;
 import com.renan.taskmanager.users.api.UserResponse;
 import com.renan.taskmanager.users.domain.Email;
 import com.renan.taskmanager.users.domain.Password;
@@ -46,6 +47,9 @@ class RegisterUserUseCaseTest {
     @Mock
     private PasswordHasher passwordHasher;
 
+    @Mock
+    private AuditEventRecorder auditRecorder;
+
     @InjectMocks
     private RegisterUserUseCase useCase;
 
@@ -77,6 +81,8 @@ class RegisterUserUseCaseTest {
             verify(userRepository, times(1)).existsByEmail(any(Email.class));
             verify(passwordHasher, times(1)).hash(any(Password.class));
             verify(userRepository, times(1)).save(any(User.class));
+            // Audit row recorded once registration succeeds.
+            verify(auditRecorder, times(1)).recordUserRegistered(any());
         }
 
         @Test
@@ -108,6 +114,7 @@ class RegisterUserUseCaseTest {
             // Verifying this prevents two classes of bugs: wasted work and data leaks.
             verify(passwordHasher, never()).hash(any());
             verify(userRepository, never()).save(any());
+            verify(auditRecorder, never()).recordUserRegistered(any());
         }
     }
 

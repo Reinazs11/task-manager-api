@@ -1,5 +1,6 @@
 package com.renan.taskmanager.users.application;
 
+import com.renan.taskmanager.common.audit.application.AuditEventRecorder;
 import com.renan.taskmanager.common.security.JwtService;
 import com.renan.taskmanager.users.api.TokenResponse;
 import com.renan.taskmanager.users.domain.InvalidCredentialsException;
@@ -57,6 +58,9 @@ class RefreshTokenUseCaseTest {
     @Mock
     private RevokedRefreshTokenRepository revokedTokenRepository;
 
+    @Mock
+    private AuditEventRecorder auditRecorder;
+
     private RefreshTokenUseCase useCase;
 
     @BeforeEach
@@ -64,7 +68,7 @@ class RefreshTokenUseCaseTest {
         jwtService = new JwtService(TEST_SECRET, ACCESS_TTL_MS, REFRESH_TTL_MS, ISSUER, AUDIENCE);
         clock = Clock.fixed(NOW, ZoneOffset.UTC);
         useCase = new RefreshTokenUseCase(jwtService, revokedTokenRepository, clock,
-                ACCESS_TTL_MS, REFRESH_TTL_MS);
+                auditRecorder, ACCESS_TTL_MS, REFRESH_TTL_MS);
     }
 
     private String mintRefresh(UUID userId, String email) {

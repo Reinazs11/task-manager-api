@@ -1,5 +1,7 @@
 package com.renan.taskmanager.users.application;
 
+import com.renan.taskmanager.common.audit.application.AuditEventRecorder;
+import com.renan.taskmanager.common.domain.UserId;
 import com.renan.taskmanager.common.security.JwtService;
 import com.renan.taskmanager.users.api.TokenResponse;
 import com.renan.taskmanager.users.domain.Email;
@@ -48,6 +50,7 @@ public class LoginUseCase {
     private final PasswordHasher passwordHasher;
     private final JwtService jwtService;
     private final MeterRegistry meterRegistry;
+    private final AuditEventRecorder auditRecorder;
     private final long accessTtlMs;
     private final long refreshTtlMs;
 
@@ -56,6 +59,7 @@ public class LoginUseCase {
             PasswordHasher passwordHasher,
             JwtService jwtService,
             MeterRegistry meterRegistry,
+            AuditEventRecorder auditRecorder,
             @Value("${app.jwt.access-token-expiration-ms:900000}") long accessTtlMs,
             @Value("${app.jwt.refresh-token-expiration-ms:604800000}") long refreshTtlMs
     ) {
@@ -63,6 +67,7 @@ public class LoginUseCase {
         this.passwordHasher = passwordHasher;
         this.jwtService = jwtService;
         this.meterRegistry = meterRegistry;
+        this.auditRecorder = auditRecorder;
         this.accessTtlMs = accessTtlMs;
         this.refreshTtlMs = refreshTtlMs;
     }
@@ -83,16 +88,23 @@ public class LoginUseCase {
         String accessToken = jwtService.generateAccessToken(userId, userEmail);
         String refreshToken = jwtService.generateRefreshToken(userId, userEmail);
 
-        recordSuccess();
+        recordSuccess(user.getId());
         return TokenResponse.of(accessToken, refreshToken, accessTtlMs, refreshTtlMs);
     }
 
-    private void recordSuccess() {
+    private void recordSuccess(UserId actor) {
         meterRegistry.counter(LOGIN_ATTEMPTS_METRIC, RESULT_TAG, RESULT_SUCCESS).increment();
+        auditRecorder.recordLoginSucceeded(actor);
     }
 
     private InvalidCredentialsException recordFailureAndThrow() {
         meterRegistry.counter(LOGIN_ATTEMPTS_METRIC, RESULT_TAG, RESULT_FAILURE).increment();
+        // Audit BEFORE throwing: recordLoginFailed runs in its own tx
+        // (REQUIRES_NEW) so the row commits before the exception propagates —
+        // a failed login is the most valuable forensic signal and must survive.
+        // Deliberately passes NO actor (anti-enumeration: even when we know the
+        // userId from a wrong-password attempt, we do not record it).
+        auditRecorder.recordLoginFailed();
         return new InvalidCredentialsException();
     }
 }

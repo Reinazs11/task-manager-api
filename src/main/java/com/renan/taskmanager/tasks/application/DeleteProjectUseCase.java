@@ -1,5 +1,6 @@
 package com.renan.taskmanager.tasks.application;
 
+import com.renan.taskmanager.common.audit.application.AuditEventRecorder;
 import com.renan.taskmanager.tasks.domain.ProjectId;
 import com.renan.taskmanager.tasks.domain.ProjectRepository;
 import com.renan.taskmanager.common.domain.UserId;
@@ -17,9 +18,11 @@ import org.springframework.transaction.annotation.Transactional;
 public class DeleteProjectUseCase {
 
     private final ProjectRepository projectRepository;
+    private final AuditEventRecorder auditRecorder;
 
-    public DeleteProjectUseCase(ProjectRepository projectRepository) {
+    public DeleteProjectUseCase(ProjectRepository projectRepository, AuditEventRecorder auditRecorder) {
         this.projectRepository = projectRepository;
+        this.auditRecorder = auditRecorder;
     }
 
     @Transactional
@@ -38,5 +41,9 @@ public class DeleteProjectUseCase {
         // security benefit of not leaking existence. We treat both as denied
         // here; if you want explicit 404, call findById first.
         projectRepository.deleteById(projectId);
+        // Record after the delete, within the same tx. The entityId is the
+        // projectId arg — it is still valid to reference even though the row is
+        // gone (audit rows are not FK-linked to the deleted project).
+        auditRecorder.recordProjectDeleted(requesterId, projectId.value());
     }
 }

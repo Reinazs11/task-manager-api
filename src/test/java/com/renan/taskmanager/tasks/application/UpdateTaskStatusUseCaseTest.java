@@ -1,5 +1,6 @@
 package com.renan.taskmanager.tasks.application;
 
+import com.renan.taskmanager.common.audit.application.AuditEventRecorder;
 import com.renan.taskmanager.tasks.domain.*;
 import com.renan.taskmanager.common.domain.UserId;
 import org.junit.jupiter.api.Test;
@@ -15,6 +16,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -24,6 +26,9 @@ class UpdateTaskStatusUseCaseTest {
 
     @Mock
     private TaskRepository taskRepository;
+
+    @Mock
+    private AuditEventRecorder auditRecorder;
 
     @InjectMocks
     private UpdateTaskStatusUseCase useCase;
@@ -42,6 +47,9 @@ class UpdateTaskStatusUseCaseTest {
         Task result = useCase.execute(tid, owner, TaskStatus.IN_PROGRESS);
 
         assertThat(result.getStatus()).isEqualTo(TaskStatus.IN_PROGRESS);
+        // Audit metadata records the BEFORE/AFTER transition: {TODO, IN_PROGRESS}.
+        verify(auditRecorder).recordTaskStatusChanged(eq(owner), eq(tid.value()),
+                eq("TODO"), eq("IN_PROGRESS"));
     }
 
     /**
@@ -57,6 +65,7 @@ class UpdateTaskStatusUseCaseTest {
         assertThatThrownBy(() -> useCase.execute(tid, attacker, TaskStatus.IN_PROGRESS))
                 .isInstanceOf(AccessDeniedException.class);
         verify(taskRepository, never()).findById(any());
+        verify(auditRecorder, never()).recordTaskStatusChanged(any(), any(), any(), any());
     }
 
     @Test
@@ -71,5 +80,7 @@ class UpdateTaskStatusUseCaseTest {
 
         assertThatThrownBy(() -> useCase.execute(tid, owner, TaskStatus.DONE))
                 .isInstanceOf(InvalidStatusTransitionException.class);
+        // No audit row on a rejected transition — the status did not change.
+        verify(auditRecorder, never()).recordTaskStatusChanged(any(), any(), any(), any());
     }
 }

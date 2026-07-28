@@ -1,5 +1,6 @@
 package com.renan.taskmanager.tasks.application;
 
+import com.renan.taskmanager.common.audit.application.AuditEventRecorder;
 import com.renan.taskmanager.tasks.domain.*;
 import com.renan.taskmanager.common.domain.UserId;
 import org.junit.jupiter.api.Test;
@@ -16,6 +17,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -28,6 +30,9 @@ class CreateTaskUseCaseTest {
 
     @Mock
     private TaskRepository taskRepository;
+
+    @Mock
+    private AuditEventRecorder auditRecorder;
 
     @InjectMocks
     private CreateTaskUseCase useCase;
@@ -47,6 +52,7 @@ class CreateTaskUseCaseTest {
         assertThat(result.getTitle()).isEqualTo(new TaskTitle("New Task"));
         assertThat(result.getOwnerId()).isEqualTo(owner);
         assertThat(result.getPriority()).isEqualTo(Priority.HIGH);
+        verify(auditRecorder).recordTaskCreated(eq(owner), eq(result.getId().value()), eq("HIGH"));
     }
 
     /**
@@ -62,5 +68,6 @@ class CreateTaskUseCaseTest {
         assertThatThrownBy(() -> useCase.execute(pid, attacker, "T", null))
                 .isInstanceOf(AccessDeniedException.class);
         verify(taskRepository, never()).save(any());
+        verify(auditRecorder, never()).recordTaskCreated(any(), any(), any());
     }
 }

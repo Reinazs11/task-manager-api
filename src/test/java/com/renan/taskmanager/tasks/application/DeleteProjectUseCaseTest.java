@@ -1,5 +1,6 @@
 package com.renan.taskmanager.tasks.application;
 
+import com.renan.taskmanager.common.audit.application.AuditEventRecorder;
 import com.renan.taskmanager.common.domain.UserId;
 import com.renan.taskmanager.tasks.domain.ProjectId;
 import com.renan.taskmanager.tasks.domain.ProjectRepository;
@@ -13,6 +14,7 @@ import org.springframework.security.access.AccessDeniedException;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -31,6 +33,9 @@ class DeleteProjectUseCaseTest {
     @Mock
     private ProjectRepository projectRepository;
 
+    @Mock
+    private AuditEventRecorder auditRecorder;
+
     @InjectMocks
     private DeleteProjectUseCase useCase;
 
@@ -43,6 +48,7 @@ class DeleteProjectUseCaseTest {
         assertThatCode(() -> useCase.execute(pid, owner)).doesNotThrowAnyException();
 
         verify(projectRepository).deleteById(pid);
+        verify(auditRecorder).recordProjectDeleted(eq(owner), eq(pid.value()));
     }
 
     /**
@@ -58,5 +64,6 @@ class DeleteProjectUseCaseTest {
         assertThatThrownBy(() -> useCase.execute(pid, attacker))
                 .isInstanceOf(AccessDeniedException.class);
         verify(projectRepository, never()).deleteById(any());
+        verify(auditRecorder, never()).recordProjectDeleted(any(), any());
     }
 }

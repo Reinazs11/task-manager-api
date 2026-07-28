@@ -1,5 +1,6 @@
 package com.renan.taskmanager.tasks.application;
 
+import com.renan.taskmanager.common.audit.application.AuditEventRecorder;
 import com.renan.taskmanager.tasks.domain.Task;
 import com.renan.taskmanager.tasks.domain.TaskId;
 import com.renan.taskmanager.tasks.domain.TaskRepository;
@@ -23,9 +24,11 @@ import org.springframework.transaction.annotation.Transactional;
 public class UpdateTaskStatusUseCase {
 
     private final TaskRepository taskRepository;
+    private final AuditEventRecorder auditRecorder;
 
-    public UpdateTaskStatusUseCase(TaskRepository taskRepository) {
+    public UpdateTaskStatusUseCase(TaskRepository taskRepository, AuditEventRecorder auditRecorder) {
         this.taskRepository = taskRepository;
+        this.auditRecorder = auditRecorder;
     }
 
     @Transactional
@@ -37,7 +40,13 @@ public class UpdateTaskStatusUseCase {
         Task task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new AccessDeniedException("Cannot update this task"));
 
+        // Capture the BEFORE status before mutating — the audit metadata {from,to}
+        // describes the transition that is about to happen.
+        TaskStatus previousStatus = task.getStatus();
         task.transitionTo(newStatus);
-        return taskRepository.save(task);
+        Task saved = taskRepository.save(task);
+        auditRecorder.recordTaskStatusChanged(requesterId, saved.getId().value(),
+                previousStatus.name(), newStatus.name());
+        return saved;
     }
 }

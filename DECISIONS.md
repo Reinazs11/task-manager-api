@@ -326,6 +326,45 @@ load test (#12) finds I/O contention.
 
 ---
 
+### Decision #21 — Audit logging: same-transaction writes with a forensic exception for failed logins
+
+**Status:** Accepted (2026-07) — closes issue #9
+
+**Context:** State-changing operations mutated data with no record of who did
+what, when. This is the third observability pillar alongside #19 (metrics) and
+#20 (logs): logs say *what happened in this request*, metrics say *how often*,
+audit says *who changed what over time*.
+
+**Decision:** A new `common.audit` context (shared kernel, like `UserId` —
+ArchUnit forbids direct `tasks`↔`users` deps) records an immutable
+`audit_events` row for every state-changing operation (project/task CRUD,
+register, login, logout, refresh rotation). The recorder runs inside the use
+case's `@Transactional(REQUIRED)` *after* the mutation succeeds — so if the tx
+rolls back, the audit row is discarded too: the trail records only *committed*
+facts. The single exception is `USER_LOGIN_FAILED`, which runs in
+`REQUIRES_NEW`: a failed login is the most valuable forensic signal, so its row
+must survive the `InvalidCredentialsException` that follows.
+
+Anti-enumeration (#6) is preserved two ways: `USER_LOGIN_FAILED` never records
+an actor id (even when the userId is known — wrong password on a valid email),
+and the `AuditEvent` constructor *enforces* this by rejecting a non-null actor
+on that action. `metadata` is a flat allowlisted map of operational fields only
+(`{from,to}` for status changes, `{priority}` for task creation) — never request
+bodies, passwords, or emails. The request correlation id flows in via a
+`CorrelationIdProvider` (not a static `MDC.get` in use cases — that would be
+untestable in unit tests). The read endpoint `GET /audit/events` is self-scoped
+(no admin path; limitation [4]); `AuditEventEntity.id` is domain-assigned with
+no `@GeneratedValue`, matching `RevokedRefreshTokenEntity`.
+
+**Consequences:** The trail is coherent and forensically complete. A failing
+audit insert would roll back the business operation — acceptable, since such an
+insert only fails on a real integrity error (DB down), where the business op is
+failing anyway. The table grows unbounded; retention is a documented follow-up
+(limitation [10]).
+
+
+---
+
 ## Known limitations (accepted trade-offs)
 
 These are **not bugs** — they are consciously out of scope, with the path to
@@ -384,6 +423,18 @@ and almost certainly async delivery (pulling in limitation [5]).
 **Close it when:** outbound email becomes a real product requirement.
 **How:** SMTP provider (SES/Postmark) + an async sender (`@Async` or a broker,
 per [5]). Do not send email synchronously on the request thread.
+
+### [10] No audit retention / purge policy
+The `audit_events` table (decision #21) is append-only and grows unbounded.
+There is no scheduled job to archive or purge old rows. The
+`idx_audit_events_actor` index keeps the "my recent activity" query cheap
+regardless of table size, so this is a storage concern, not a performance one.
+**Close it when:** the table reaches a size where storage cost or backup time
+matters, or when a compliance regime demands a defined retention window.
+**How:** add a `deleteExpired`/`deleteOlderThan` to `AuditEventRepository`
+mirroring `RevokedRefreshTokenRepository.deleteExpired`, and a scheduler to
+invoke it (pulls in limitation [5]). A retention window (e.g. 365 days) and
+a "cold archive to object storage" step would be the production shape.
 
 ---
 
