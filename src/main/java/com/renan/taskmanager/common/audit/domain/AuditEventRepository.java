@@ -36,4 +36,11 @@ public interface AuditEventRepository {
      * and tests; returns empty when the id is unknown rather than throwing.
      */
     Optional<AuditEvent> findById(UUID id);
+
+    /**
+     * Removes every audit row. Test-only convenience (named explicitly to
+     * signal intent) used by integration tests to start from a clean table.
+     * Mirrors {@code RevokedRefreshTokenRepository.deleteAll}.
+     */
+    void deleteAllForTest();
 }

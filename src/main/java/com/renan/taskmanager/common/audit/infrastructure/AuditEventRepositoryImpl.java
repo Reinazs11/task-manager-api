@@ -56,4 +56,9 @@ public class AuditEventRepositoryImpl implements AuditEventRepository, AuditEven
                         actorId.value(), AuditActionEntity.valueOf(action.name()), pageable)
                 .map(mapper::toDomain);
     }
+
+    @Override
+    public void deleteAllForTest() {
+        jpaRepository.deleteAll();
+    }
 }
