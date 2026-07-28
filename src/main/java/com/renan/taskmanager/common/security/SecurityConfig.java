@@ -35,7 +35,11 @@ import java.util.List;
  * injects the same bean — single source of truth for the cost factor.</p>
  *
  * <p><b>Public routes:</b> {@code /api/v1/auth/**} (register, login) and
- * API documentation ({@code /swagger-ui/**}, {@code /v3/api-docs/**}).
+ * API documentation ({@code /swagger-ui/**}, {@code /swagger-ui.html},
+ * {@code /v3/api-docs/**}). Note {@code /swagger-ui.html} must be listed
+ * explicitly: the {@code /swagger-ui/**} glob matches assets inside the
+ * folder (e.g. {@code /swagger-ui/index.html}), but NOT the entry-point
+ * redirect springdoc publishes at the root ({@code /swagger-ui.html}).
  * Everything else requires authentication.</p>
  *
  * <p><b>CORS:</b> the dev profile ships a default origin
@@ -80,6 +84,11 @@ public class SecurityConfig {
                         // Health probe for Docker/K8s — must not require JWT.
                         .requestMatchers("/actuator/health").permitAll()
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                        // /swagger-ui.html is the entry-point redirect springdoc publishes at
+                        // the root. The /swagger-ui/** glob above matches assets inside the
+                        // folder but NOT this redirect — without it, the canonical docs URL
+                        // returns 401. Listed separately to make the gap explicit. (issue #17)
+                        .requestMatchers("/swagger-ui.html").permitAll()
                         .anyRequest().authenticated())
                 // Register our JWT filter BEFORE the default form-login filter
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
