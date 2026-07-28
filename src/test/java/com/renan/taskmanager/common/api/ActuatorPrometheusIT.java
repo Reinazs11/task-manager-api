@@ -72,6 +72,11 @@ class ActuatorPrometheusIT extends AbstractIntegrationTest {
             // request, so the meter MUST be present — this also proves the registry
             // is wired (a missing dependency yields an empty or 404 response).
             assertThatPrometheusBodyHasMeter(body, "http_server_requests_seconds");
+
+            // The custom login counter (LoginUseCase) is incremented on the
+            // registerAndLogin() above, so its success-tagged sample MUST appear.
+            // Asserting the tag value binds the metric name + tag contract.
+            assertThatPrometheusBodyHasMeter(body, "auth_login_attempts_total{result=\"success\"}");
         }
     }
 

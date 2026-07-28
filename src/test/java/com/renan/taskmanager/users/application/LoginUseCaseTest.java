@@ -8,6 +8,8 @@ import com.renan.taskmanager.users.domain.Password;
 import com.renan.taskmanager.users.domain.PasswordHasher;
 import com.renan.taskmanager.users.domain.User;
 import com.renan.taskmanager.users.domain.UserRepository;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -34,6 +36,9 @@ import static org.mockito.Mockito.when;
  *   <li>unknown email and wrong password produce the SAME exception (anti-enumeration)</li>
  *   <li>happy path issues both access and refresh tokens</li>
  *   <li>token type claim distinguishes access vs refresh</li>
+ *   <li>the auth.login.attempts counter records success/failure with a BINARY
+ *       result tag that never distinguishes the failure reason (anti-enumeration
+ *       applied to the metric too)</li>
  * </ul>
  */
 @ExtendWith(MockitoExtension.class)
@@ -50,6 +55,11 @@ class LoginUseCaseTest {
     @Mock
     private PasswordHasher passwordHasher;
 
+    // Real MeterRegistry (not mocked): we want to assert the counter is actually
+    // incremented and carries the right tag — mocking it would test nothing.
+    private MeterRegistry meterRegistry;
+    private SimpleMeterRegistry simpleRegistry;
+
     // Real JwtService, not mocked: we want to verify token generation end-to-end
     // (the cryptographic signing is fast and deterministic per secret).
     private JwtService jwtService;
@@ -57,9 +67,12 @@ class LoginUseCaseTest {
 
     @BeforeEach
     void setUp() {
+        simpleRegistry = new SimpleMeterRegistry();
+        meterRegistry = simpleRegistry;
         jwtService = new JwtService(TEST_SECRET, ACCESS_TTL_MS, REFRESH_TTL_MS,
                 "task-manager-api", "task-manager-api-users");
-        useCase = new LoginUseCase(userRepository, passwordHasher, jwtService, ACCESS_TTL_MS, REFRESH_TTL_MS);
+        useCase = new LoginUseCase(userRepository, passwordHasher, jwtService,
+                meterRegistry, ACCESS_TTL_MS, REFRESH_TTL_MS);
     }
 
     @Nested
@@ -109,6 +122,20 @@ class LoginUseCaseTest {
             var claims = jwtService.parseAndValidate(response.accessToken());
             assertThat(jwtService.extractTokenType(claims)).isEqualTo(JwtService.TYPE_ACCESS);
             assertThat(jwtService.extractEmail(claims)).isEqualTo("renan@example.com");
+        }
+
+        @Test
+        @DisplayName("Should record auth.login.attempts{result=success} once")
+        void shouldRecordSuccessCounter() {
+            String storedHash = "$2a$10$storedHashValue";
+            User persisted = User.create(new Email("renan@example.com"), Password.fromHash(storedHash));
+            when(userRepository.findByEmail(any(Email.class))).thenReturn(Optional.of(persisted));
+            when(passwordHasher.matches("Password123", storedHash)).thenReturn(true);
+
+            useCase.execute("renan@example.com", "Password123");
+
+            assertThat(counter(LoginUseCase.RESULT_SUCCESS)).isEqualTo(1.0);
+            assertThat(counter(LoginUseCase.RESULT_FAILURE)).isZero();
         }
     }
 
@@ -163,6 +190,38 @@ class LoginUseCaseTest {
             // Identical message => attackers cannot distinguish "user not found" from "wrong password"
             assertThat(msg1).isEqualTo(msg2);
         }
+
+        @Test
+        @DisplayName("Both failure cases should record the SAME failure tag (anti-enumeration in metrics)")
+        void bothFailuresShouldRecordSameFailureTag() {
+            // Unknown email → failure
+            when(userRepository.findByEmail(any(Email.class))).thenReturn(Optional.empty());
+            catchMessage(() -> useCase.execute("ghost@example.com", "anything"));
+            double failuresAfterUnknownEmail = counter(LoginUseCase.RESULT_FAILURE);
+
+            // Wrong password → failure
+            User persisted = User.create(
+                    new Email("renan@example.com"),
+                    Password.fromHash("$2a$10$storedHashValue")
+            );
+            when(userRepository.findByEmail(any(Email.class))).thenReturn(Optional.of(persisted));
+            when(passwordHasher.matches(anyString(), anyString())).thenReturn(false);
+            catchMessage(() -> useCase.execute("renan@example.com", "WrongPassword"));
+            double failuresAfterWrongPassword = counter(LoginUseCase.RESULT_FAILURE);
+
+            // Each failure increments the SAME tag exactly once. Crucially there is
+            // no per-reason tag (no "user_not_found" vs "wrong_password") that an
+            // attacker could read off /actuator/prometheus to enumerate valid emails.
+            assertThat(failuresAfterUnknownEmail).isEqualTo(1.0);
+            assertThat(failuresAfterWrongPassword).isEqualTo(2.0);
+            assertThat(counter(LoginUseCase.RESULT_SUCCESS)).isZero();
+        }
+    }
+
+    /** Reads the current value of auth.login.attempts{result=<tag>}. */
+    private double counter(String resultTag) {
+        return simpleRegistry.counter(LoginUseCase.LOGIN_ATTEMPTS_METRIC, LoginUseCase.RESULT_TAG, resultTag)
+                .count();
     }
 
     /** Helper: runs a block expected to throw InvalidCredentialsException, returns its message. */
