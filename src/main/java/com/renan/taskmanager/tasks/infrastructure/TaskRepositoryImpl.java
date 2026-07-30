@@ -7,6 +7,7 @@ import com.renan.taskmanager.tasks.domain.TaskId;
 import com.renan.taskmanager.tasks.domain.TaskRepository;
 import com.renan.taskmanager.tasks.domain.TaskStatus;
 import com.renan.taskmanager.common.domain.UserId;
+import jakarta.persistence.EntityManager;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
@@ -22,17 +23,23 @@ public class TaskRepositoryImpl implements TaskRepository, TaskQueryPort {
 
     private final TaskJpaRepository jpaRepository;
     private final TaskMapper mapper;
+    private final EntityManager entityManager;
 
-    public TaskRepositoryImpl(TaskJpaRepository jpaRepository, TaskMapper mapper) {
+    public TaskRepositoryImpl(TaskJpaRepository jpaRepository, TaskMapper mapper,
+                              EntityManager entityManager) {
         this.jpaRepository = jpaRepository;
         this.mapper = mapper;
+        this.entityManager = entityManager;
     }
 
     @Override
     public com.renan.taskmanager.tasks.domain.Task save(com.renan.taskmanager.tasks.domain.Task task) {
         TaskEntity entity = mapper.toEntity(task);
-        TaskEntity saved = jpaRepository.save(entity);
-        return mapper.toDomain(saved);
+        if (jpaRepository.existsById(task.getId().value())) {
+            return mapper.toDomain(jpaRepository.saveAndFlush(entity));
+        }
+        entityManager.persist(entity);
+        return mapper.toDomain(entity);
     }
 
     @Override

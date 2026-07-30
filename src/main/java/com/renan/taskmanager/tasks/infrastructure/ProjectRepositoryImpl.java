@@ -6,6 +6,7 @@ import com.renan.taskmanager.tasks.domain.Project;
 import com.renan.taskmanager.tasks.domain.ProjectId;
 import com.renan.taskmanager.tasks.domain.ProjectRepository;
 import com.renan.taskmanager.common.domain.UserId;
+import jakarta.persistence.EntityManager;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
@@ -21,17 +22,20 @@ public class ProjectRepositoryImpl implements ProjectRepository, ProjectQueryPor
 
     private final ProjectJpaRepository jpaRepository;
     private final TaskMapper mapper;
+    private final EntityManager entityManager;
 
-    public ProjectRepositoryImpl(ProjectJpaRepository jpaRepository, TaskMapper mapper) {
+    public ProjectRepositoryImpl(ProjectJpaRepository jpaRepository, TaskMapper mapper,
+                                 EntityManager entityManager) {
         this.jpaRepository = jpaRepository;
         this.mapper = mapper;
+        this.entityManager = entityManager;
     }
 
     @Override
     public Project save(Project project) {
         ProjectEntity entity = mapper.toEntity(project);
-        ProjectEntity saved = jpaRepository.save(entity);
-        return mapper.toDomain(saved);
+        entityManager.persist(entity);
+        return mapper.toDomain(entity);
     }
 
     @Override

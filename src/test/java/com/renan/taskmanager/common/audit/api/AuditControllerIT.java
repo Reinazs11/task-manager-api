@@ -58,7 +58,7 @@ class AuditControllerIT extends AbstractIntegrationTest {
                 .andExpect(status().isOk())
                 .andReturn();
         return objectMapper.readTree(loginResult.getResponse().getContentAsString())
-                .get("accessToken").asText();
+                .get("accessToken").asString();
     }
 
     private void createProject(String token, String name) throws Exception {

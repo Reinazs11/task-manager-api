@@ -5,7 +5,6 @@ import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import jakarta.servlet.FilterChain;
-import net.logstash.logback.argument.StructuredArgument;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -16,7 +15,6 @@ import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 
-import java.util.Arrays;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -31,13 +29,8 @@ import static org.mockito.Mockito.mock;
  * actually emitted and assert absence. Mocking the {@link Logger} would test the
  * mock, not the filter — so we attach an in-memory appender to the real logger.</p>
  *
- * <p><b>Structured arguments ({@code kv}):</b> the request line emits
- * {@code method}/{@code uri}/{@code status}/{@code latencyMs}/{@code client} as
- * {@link StructuredArgument}s. In dev each one renders as {@code key=value} in
- * the formatted message; in prod the {@code LogstashEncoder} promotes them to
- * first-class JSON fields (see {@code StructuredLoggingEncoderTest}). Both
- * behaviors are asserted here: the formatted string AND the fact that the args
- * are {@link StructuredArgument} instances (not plain strings).</p>
+ * <p>The request line uses native SLF4J key-value pairs, which Spring Boot's
+ * structured encoder promotes to first-class JSON fields in production.</p>
  */
 class SanitizingRequestLoggingFilterTest {
 
@@ -79,31 +72,21 @@ class SanitizingRequestLoggingFilterTest {
     class RequestLine {
 
         @Test
-        @DisplayName("Should emit method, URI, status, latency and client as key=value structured arguments")
+        @DisplayName("Should emit method, URI, status, latency and client as structured fields")
         void shouldEmitStructuredRequestLine() throws Exception {
             MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/v1/projects");
 
             runFilter(request);
 
-            // The formatted message renders each StructuredArgument as key=value.
-            String line = formattedMessages().stream()
-                    .filter(m -> m.contains("/api/v1/projects"))
-                    .findFirst().orElseThrow(() -> new AssertionError("request line not logged"));
-            assertThat(line).contains("method=POST");
-            assertThat(line).contains("uri=/api/v1/projects");
-            assertThat(line).contains("status=200");
-            assertThat(line).contains("latencyMs=");
-            assertThat(line).contains("client=");
-
-            // The arguments MUST be StructuredArgument instances, not plain strings.
-            // This is what lets the LogstashEncoder promote them to JSON fields.
-            // (Asserting the contract, not just the rendered text.)
             ILoggingEvent event = appender.list.stream()
-                    .filter(e -> e.getFormattedMessage().contains("/api/v1/projects"))
+                    .filter(e -> e.getFormattedMessage().equals("HTTP request completed"))
                     .findFirst().orElseThrow();
-            Object[] args = event.getArgumentArray();
-            assertThat(args).isNotNull();
-            assertThat(Arrays.stream(args)).allMatch(arg -> arg instanceof StructuredArgument);
+            assertThat(event.getKeyValuePairs())
+                    .extracting(pair -> pair.key)
+                    .containsExactly("method", "uri", "status", "latencyMs", "client");
+            assertThat(event.getKeyValuePairs())
+                    .extracting(pair -> pair.value)
+                    .contains("POST", "/api/v1/projects", 200);
         }
     }
 

@@ -1,280 +1,141 @@
 # Task Manager API
 
 [![CI](https://github.com/Reinazs11/task-manager-api/actions/workflows/ci.yml/badge.svg)](https://github.com/Reinazs11/task-manager-api/actions/workflows/ci.yml)
-[![Java](https://img.shields.io/badge/Java-21-orange)](https://adoptium.net/)
-[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.3.x-6DB33F)](https://spring.io/projects/spring-boot)
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Docker image](https://img.shields.io/badge/ghcr.io-task--manager--api-blue?logo=docker)](https://github.com/Reinazs11/task-manager-api/pkgs/container/task-manager-api)
+[![Java 21](https://img.shields.io/badge/Java-21-orange)](https://adoptium.net/)
+[![Spring Boot 4.1](https://img.shields.io/badge/Spring%20Boot-4.1-6DB33F)](https://spring.io/projects/spring-boot)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![GHCR](https://img.shields.io/badge/GHCR-task--manager--api-blue?logo=docker)](https://github.com/Reinazs11/task-manager-api/pkgs/container/task-manager-api)
 
-REST API for task and project management with JWT authentication, built with
-Java 21 and Spring Boot 3 following Simplified DDD and TDD.
+A Java 21 REST API for personal projects and tasks. It demonstrates secure
+authentication, ownership rules, PostgreSQL concurrency, observable operations,
+and reproducible delivery without pretending to be a complete product.
 
-> Portfolio project demonstrating a production-grade backend: real PostgreSQL
-> (via Testcontainers, no H2 shortcuts), strict architecture enforcement
-> (ArchUnit), mutation testing (PIT), versioned schema migrations (Flyway), and
-> an 80% line-coverage gate that fails the build.
+**Status:** `v1.0.0 — complete, maintenance only`
 
----
+**Public demo:** [Swagger UI](https://task-manager-api-demo.onrender.com/swagger-ui.html)
+([Render Free](https://render.com/docs/free) sleeps after inactivity; first access can take about one minute).
+The demo is disposable: never use a real email address or password.
 
-## Highlights
+## What this project demonstrates
 
-- **Java 21** (records, sealed interfaces, pattern matching) on **Spring Boot 3.3**
-- **JWT auth with server-side refresh-token revocation** — access token (15 min) +
-  refresh token (7 days, **one-time-use rotation**), HS256 with `iss`/`aud`
-  enforcement; a `revoked_refresh_tokens` table backs rotation and logout
-- **Token rotation endpoint** `POST /auth/refresh` — trade a refresh for a new pair;
-  the old refresh is revoked server-side in the same transaction
-- **Logout endpoint** `POST /auth/logout` — revoke a refresh token server-side;
-  access tokens are short-lived and not revoked (drop them locally)
-- **Anti-enumeration posture** — login, resource lookups, and refresh all collapse
-  error variants into a single 401/403 so callers cannot enumerate
-- **Auth-endpoint rate limiting** — per-IP token bucket (10 req/min) on
-  `/auth/login` and `/auth/refresh` returns 429 with `Retry-After`; closes the
-  brute-force gap that anti-enumeration alone leaves open. Bucket store is
-  bounded (Caffeine) so XFF spoofing can't exhaust the heap
-- **Simplified DDD** — bounded contexts (`users`, `tasks`) with `domain` /
-  `application` / `infrastructure` / `api` layers
-- **Testcontainers** for integration tests against **real PostgreSQL 16** (no H2)
-- **Architecture tests with ArchUnit** enforce layering and cross-context isolation
-- **Mutation testing with PIT** runs continuously (scoped to the domain layer)
-- **Flyway** owns schema migrations; Hibernate runs in `validate` mode everywhere
-- **OpenAPI 3 / Swagger UI** documents every endpoint (disabled in prod)
-- **CORS** env-driven with fail-fast in prod (no silent allow-all)
-- **Actuator health probe** exposed (no auth) for Docker/K8s
-- **Prometheus metrics** at `/actuator/prometheus` (JWT-protected): HTTP latency
-  histograms plus a custom `auth_login_attempts{result=success|failure}` counter
-- **Structured logs** — JSON in prod (Loki/ELK/Datadog-ready, one object per line),
-  human-readable in dev; correlation id and HTTP fields (`method`/`uri`/`status`/
-  `latencyMs`) as first-class JSON fields, with `Authorization`/`Cookie` redaction
-  enforced by a custom filter
-- **Audit trail** — every state-changing operation (project/task CRUD, register,
-  login, logout, refresh rotation) records an immutable `audit_events` row in the
-  **same transaction** as the business change (a rollback discards the audit row);
-  failed logins are the deliberate exception, persisted in their own tx so the
-  forensic record survives. `USER_LOGIN_FAILED` never carries an actor id
-  (anti-enumeration). Self-scoped read endpoint `GET /audit/events` (DECISIONS.md #21)
-- **BCrypt cost 12** (OWASP 2026), single source of truth
-- **JaCoCo coverage gate** at 80% LINE
+- Atomic one-time-use refresh rotation: concurrent replay yields one `200` and one `401`.
+- Login anti-enumeration: unknown email and wrong password use the same BCrypt path and `401` contract.
+- Concurrent registration: PostgreSQL uniqueness produces one `201`, one `409`, one user and one audit event.
+- Pure domain boundaries enforced by ArchUnit; persistence and HTTP stay in adapters.
+- PostgreSQL 16 integration tests with Testcontainers; no H2 replacement.
+- CI gates tests, JaCoCo, PIT and architecture before GHCR publication or Render deploy.
 
----
+## Stack
 
-## Tech stack
+| Area | Choice |
+|---|---|
+| Runtime | Java 21, Spring Boot 4.1, Spring MVC, Spring Security |
+| Data | PostgreSQL 16, Spring Data JPA, Hibernate, Flyway |
+| Auth | jjwt 0.13, HS256, BCrypt cost 12, access 15 min / refresh 7 days |
+| Contracts | Bean Validation, springdoc OpenAPI 3 / Swagger UI |
+| Observability | Actuator, Micrometer/Prometheus, native structured Logstash JSON |
+| Quality | JUnit, Mockito, Testcontainers 2, JaCoCo, PIT, ArchUnit |
+| Delivery | Maven Wrapper 3.3.4, Docker, GitHub Actions, GHCR, Render + Neon |
 
-| Layer            | Choice                          | Why                                                    |
-|------------------|---------------------------------|--------------------------------------------------------|
-| Language         | Java 21                         | LTS, records, sealed interfaces, pattern matching      |
-| Framework        | Spring Boot 3.3                 | De-facto Java backend; auto-config + mature ecosystem  |
-| Persistence      | Spring Data JPA + Hibernate     | Standard ORM; `validate`-only, schema owned by Flyway  |
-| Database         | PostgreSQL 16                   | Real-world RDBMS; UUID + timestamptz + CHECK constraints |
-| Migrations       | Flyway 10                       | Plain SQL, versioned, applied before Hibernate validates |
-| Security         | Spring Security + jjwt 0.12     | Stateless, HS256, access + refresh tokens              |
-| Docs             | springdoc-openapi 2.6           | Swagger UI for dev; disabled in prod                   |
-| Metrics          | Micrometer + Prometheus registry| `/actuator/prometheus` (JWT), latency histograms + login counter |
-| Logging          | Logback + logstash-logback-encoder | JSON in prod (Loki/ELK/Datadog-ready), human-readable in dev; MDC correlation id + structured HTTP fields |
-| Build            | Maven (Java 21)                 | Surefire (unit) + Failsafe (integration)               |
-| Tests            | JUnit 5 + Mockito + AssertJ     | Slices (`@DataJpaTest`) and full-stack (`@SpringBootTest`) |
-| Integration DB   | Testcontainers 1.20             | Real PostgreSQL per run; no H2 dialect surprises       |
-| Arch tests       | ArchUnit 1.3                    | Layering + cross-context + stereotype + naming rules   |
-| Mutation tests   | PIT 1.16                        | Verifies tests catch real mutations, not just lines    |
-| Coverage         | JaCoCo 0.8                      | 80% gate at `verify`                                   |
-| Containerization | Docker + docker-compose         | One command brings everything up; image published to GHCR on merge to main |
-
----
+BCrypt is retained for project compatibility. New systems should normally
+prefer Argon2id; this API explicitly rejects passwords over BCrypt's 72-byte
+UTF-8 limit. See the [OWASP Password Storage Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html).
 
 ## Architecture
 
-```
-                          HTTP request (with X-Request-Id)
-                                       │
-                                       ▼
-                ┌──────────────────────────────────────────┐
-                │   api layer                              │
-                │   AuthController · ProjectController · …  │  ← @RestController, DTOs (records)
-                └──────────────────────────────────────────┘
-                                       │ calls
-                                       ▼
-                ┌──────────────────────────────────────────┐
-                │   application layer                      │
-                │   RegisterUserUseCase · CreateTaskUseCase │  ← orchestration, transactions
-                │   TaskMapper (MapStruct) · ports          │
-                └──────────────────────────────────────────┘
-                                       │ invokes
-                                       ▼
-                ┌──────────────────────────────────────────┐
-                │   domain layer (pure Java, no Spring)    │
-                │   User · Email · Password · UserId        │  ← entities, value objects, invariants
-                │   Project · Task · TaskStatus · Priority  │
-                └──────────────────────────────────────────┘
-                                       ▲ implemented by
-                                       │
-                ┌──────────────────────────────────────────┐
-                │   infrastructure layer                   │
-                │   UserEntity · UserRepositoryImpl         │  ← JPA, BCrypt, JWT, SecurityConfig
-                │   JpaRepositories · Flyway migrations    │
-                └──────────────────────────────────────────┘
-                                       │ JDBC
-                                       ▼
-                                PostgreSQL 16
-
-  Cross-cutting (com.renan.taskmanager.common):
-    api/             GlobalExceptionHandler · ErrorResponse (one shape, 6 fields)
-                     OpenApiConfig
-    observability/   CorrelationIdFilter · SanitizingRequestLoggingFilter
-    security/        SecurityConfig · JwtService · JwtAuthenticationFilter
-                     JsonAuthenticationEntryPoint
-    domain/          UserId (shared kernel — referenced by tasks and users)
+```text
+HTTP -> api -> application -> domain
+                  |           ^
+                  v           |
+             infrastructure --+
+                  |
+             PostgreSQL 16
 ```
 
-### Two bounded contexts
+`users` and `tasks` are isolated bounded contexts. The domain is plain Java;
+controllers live in `api`; JPA, JWT and BCrypt implementations live in
+`infrastructure`. `common` contains the small shared kernel and cross-cutting
+security, errors, audit and observability.
 
-- **`users`** — registration, login, JWT issuance, password hashing (BCrypt)
-- **`tasks`** — projects and tasks, with owner-based authorization and
-  status-transition rules (`TODO → IN_PROGRESS → DONE`)
+## Endpoints
 
-Contexts communicate only through the **`common` shared kernel** — never
-directly. ArchUnit enforces this.
+All application routes use the `/api/v1` prefix.
 
-### Why "simplified" DDD?
+| Method | Path | Auth | Purpose |
+|---|---|---:|---|
+| POST | `/auth/register` | No | Register |
+| POST | `/auth/login` | No | Issue access and refresh tokens |
+| POST | `/auth/refresh` | No | Atomically rotate a refresh token |
+| POST | `/auth/logout` | No | Idempotently revoke a refresh token |
+| POST | `/projects` | JWT | Create a project |
+| GET | `/projects` | JWT | List owned projects |
+| GET | `/projects/{id}` | JWT | Read an owned project |
+| DELETE | `/projects/{id}` | JWT | Delete an owned project |
+| POST | `/projects/{id}/tasks` | JWT | Create a task |
+| GET | `/projects/{id}/tasks` | JWT | List/filter project tasks |
+| PATCH | `/tasks/{id}/status` | JWT | Apply a valid status transition |
+| GET | `/audit/events` | JWT | Read the caller's audit events |
+| GET | `/actuator/health` | No | Health probe |
+| GET | `/actuator/prometheus` | JWT | Prometheus exposition |
 
-Full DDD adds aggregates, events, factories, anti-corruption layers and more —
-useful in large systems, but ceremony without payoff at this scale. We keep
-the patterns that earn their place (**bounded contexts, value objects, pure
-domain layer, ports/adapters**) and skip the rest (events, ACLs, context
-mapping). The pragmatic middle between a flat `controller/service/repository`
-layout and enterprise DDD.
-
----
-
-## API endpoints
-
-All routes are prefixed with `/api/v1`.
-
-| Method | Path                              | Auth | Description                                  |
-|--------|-----------------------------------|------|----------------------------------------------|
-| POST   | `/auth/register`                  | —    | Register a new user                          |
-| POST   | `/auth/login`                     | —    | Exchange credentials for access + refresh JWT |
-| POST   | `/auth/refresh`                   | —    | Rotate tokens: refresh in → new access + refresh out (one-time-use) |
-| POST   | `/auth/logout`                    | —    | Revoke a refresh token server-side (logout)         |
-| POST   | `/projects`                       | JWT  | Create a project                             |
-| GET    | `/projects`                       | JWT  | List the caller's projects (paginated)       |
-| GET    | `/projects/{id}`                  | JWT  | Get a project (owner or 403)                 |
-| DELETE | `/projects/{id}`                  | JWT  | Delete a project (owner or 403)              |
-| POST   | `/projects/{id}/tasks`            | JWT  | Create a task inside a project (owner or 403)|
-| GET    | `/projects/{id}/tasks`            | JWT  | List tasks (filter by `status`, paginated)   |
-| PATCH  | `/tasks/{id}/status`              | JWT  | Transition a task's status (owner or 403)    |
-| GET    | `/audit/events`                   | JWT  | List the caller's own audit trail (filter by `action`, paginated) |
-| GET    | `/actuator/health`                | —    | Liveness/readiness probe (Docker, K8s)       |
-| GET    | `/actuator/prometheus`            | JWT  | Prometheus text exposition (latency, counters)|
-
-Every error returns a single JSON shape:
+Errors use one six-field shape:
 `{ timestamp, status, error, message, path, details }`.
-Authenticated lookups collapse 404 into 403 (anti-enumeration: a caller
-cannot tell "exists but not mine" from "does not exist").
 
----
+## Run locally
 
-## How to run
-
-### Prerequisites
-
-- Docker + Docker Compose
-
-### Bring everything up (PostgreSQL + API)
+Prerequisite: Docker with Compose.
 
 ```bash
-cp .env.example .env          # optional for dev, mandatory for prod (sets JWT_SECRET)
+git clone https://github.com/Reinazs11/task-manager-api.git
+cd task-manager-api
 docker compose up --build
 ```
 
-> The dev profile ships a default `JWT_SECRET`, so `docker compose up --build`
-> works without `.env` for a first run. Override it via `.env` for anything
-> beyond local development.
+Swagger: [http://localhost:8080/swagger-ui.html](http://localhost:8080/swagger-ui.html)
 
-The API starts at `http://localhost:8080`.
-Swagger UI: `http://localhost:8080/swagger-ui.html` (dev profile only).
-
-### Database only (run the app from your IDE)
+Run the complete build directly:
 
 ```bash
-docker compose up postgres
+./mvnw -B -ntp clean verify       # Linux/macOS
+.\mvnw.cmd -B -ntp clean verify  # Windows
 ```
 
-Then run `TaskManagerApplication` from your IDE with the `dev` profile.
-Flyway applies the schema on startup; Hibernate validates it.
-
-### Run from the published image
-
-Every merge to `main` publishes a multi-arch image (`amd64` + `arm64`) to the
-GitHub Container Registry. Pull it and run against your own PostgreSQL:
+Published image:
 
 ```bash
-docker pull ghcr.io/reinazs11/task-manager-api:latest
-
-docker run -p 8080:8080 \
-  -e SPRING_PROFILES_ACTIVE=prod \
-  -e JWT_SECRET=<your-secret> \
-  -e DB_HOST=<db-host> -e DB_PORT=5432 \
-  -e DB_NAME=<db> -e DB_USER=<user> -e DB_PASSWORD=<password> \
-  ghcr.io/reinazs11/task-manager-api:latest
+docker pull ghcr.io/reinazs11/task-manager-api:1.0.0
 ```
 
-> The image ships only the **dev** `JWT_SECRET` placeholder baked into
-> `application.yml`. For any non-local deployment you **must** override it with
-> `JWT_SECRET` — never ship the placeholder as the production secret. See
-> decision #18.
+Production requires `JWT_SECRET`, database credentials, issuer, audience and
+restricted CORS. `prod` disables Swagger; `prod,demo` enables it explicitly.
+Both `JDBC_DATABASE_URL` / `PORT` and the local `DB_*` / `SERVER_PORT`
+fallbacks are supported.
 
-Other tags: `sha-<short>` (per-commit, for rollback) and semver (`1.2.3`,
-`1.2`, `1`) on `v*` git tags.
+## Tests and evidence
 
----
-
-## Testing
+Current `clean verify`: **417 tests** (297 unit + 120 integration), **96.78%**
+line coverage and **86.70%** branch coverage. The authentication context is
+**94.16% lines / 88.89% branches**. The scoped PIT gate scores **87% mutation /
+93% test strength**. Thresholds fail the build below 80%/70% globally,
+90%/80% for authentication, or 80% mutation score.
 
 ```bash
-./mvnw test                    # fast: unit tests only (no Docker)
-./mvnw verify                  # full: unit + integration (Testcontainers)
+./mvnw -B -ntp clean verify
+./mvnw -B -ntp -Ppit test-compile org.pitest:pitest-maven:mutationCoverage \
+  -DtargetClasses=com.renan.taskmanager.*.domain.*,com.renan.taskmanager.users.application.LoginUseCase,com.renan.taskmanager.users.application.RegisterUserUseCase,com.renan.taskmanager.users.application.RefreshTokenUseCase,com.renan.taskmanager.users.application.LogoutUseCase \
+  -DtargetTests=com.renan.taskmanager.*.domain.*,com.renan.taskmanager.users.* \
+  -DmutationThreshold=80
 ```
 
-> The project uses the Maven Wrapper — no local Maven install required.
+## Decisions and limitations
 
-Convention:
+[DECISIONS.md](DECISIONS.md) records rationale and accepted limits, including
+single-node rate limiting, owner-only authorization, hard deletes, no password
+reset/email flow, synchronous processing, and no retention scheduler. These are
+scope choices, not hidden claims.
 
-- `*Test.java` → unit tests, run by Surefire (no Spring context)
-- `*IT.java`   → integration tests, run by Failsafe (Spring + real PostgreSQL)
-
-Coverage report: `target/site/jacoco/index.html` (generated by `./mvnw verify`).
-
-### Mutation testing (PIT)
-
-Scoped runs only (whole-project is slow):
-
-```bash
-mvn -P pit test-compile org.pitest:pitest-maven:mutationCoverage \
-    -DtargetClasses=com.renan.taskmanager.common.api.* \
-    -DtargetTests=com.renan.taskmanager.common.api.*
-```
-
-HTML report: `target/pit-reports/index.html`.
-
----
-
-## Key engineering decisions
-
-Highlights: anti-enumeration (404 collapsed into 403 on authenticated lookups),
-Testcontainers over H2, Flyway-validated schema, JWT with `iss`/`aud` enforced
-in the parser and one-time-use refresh-token rotation backed by a server-side
-revocation table, BCrypt cost 12, structured JSON logging in prod paired with
-Prometheus metrics, PIT mutation testing scoped to the domain layer in CI, and
-an 80% line-coverage gate.
-
-`AGENTS.md` holds contribution rules and AI-development guardrails.
-[`DECISIONS.md`](DECISIONS.md) is the decision log and accepted-limitations
-register (what is consciously out of scope). Scheduled future work lives
-in [GitHub Issues](https://github.com/Reinazs11/task-manager-api/issues)
-— the line between "accepted limitation" and "work we will do" is
-documented there.
-
----
+[AGENTS.md](AGENTS.md) documents the TDD, architecture, review and
+AI-assisted-development guardrails used to finish the project.
 
 ## License
 

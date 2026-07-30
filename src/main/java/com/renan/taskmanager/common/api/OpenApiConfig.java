@@ -6,7 +6,7 @@ import io.swagger.v3.oas.models.info.Contact;
 import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.info.License;
 import io.swagger.v3.oas.models.security.SecurityScheme;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.info.BuildProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -17,8 +17,7 @@ import org.springframework.context.annotation.Configuration;
  * Without this, Swagger UI's "Authorize" button does not appear and consumers
  * cannot try protected endpoints without manually pasting headers. Declaring
  * {@code bearerAuth} once here lets every controller reference it via the
- * {@code @SecurityRequirement} annotation (added in Step 6b on protected
- * endpoints), so the UI prompts for a JWT and attaches it as
+ * {@code @SecurityRequirement} annotation, so the UI prompts for a JWT and attaches it as
  * {@code Authorization: Bearer <token>} automatically.</p>
  *
  * <p><b>Why HTTP/bearer and not OAuth2?</b>
@@ -34,15 +33,13 @@ public class OpenApiConfig {
     private static final String SECURITY_SCHEME_NAME = "bearerAuth";
 
     @Bean
-    public OpenAPI taskManagerOpenApi(@Value("${spring.application.name:task-manager-api}") String appName,
-                                     @Value("${app.api.version:0.1.0}") String appVersion) {
+    public OpenAPI taskManagerOpenApi(BuildProperties buildProperties) {
         return new OpenAPI()
                 .info(new Info()
                         .title("Task Manager API")
                         .description("REST API for task management with JWT authentication. "
-                                + "Portfolio project demonstrating professional Spring Boot practices: "
-                                + "simplified DDD, TDD, Testcontainers, and standardized error handling.")
-                        .version(appVersion)
+                                + "Demo instances are disposable; never use a real email address or password.")
+                        .version(buildProperties.getVersion())
                         .contact(new Contact()
                                 .name("Renan")
                                 .url("https://github.com/renan-taskmanager"))

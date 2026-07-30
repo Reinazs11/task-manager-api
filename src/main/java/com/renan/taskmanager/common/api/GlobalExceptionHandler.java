@@ -2,6 +2,7 @@ package com.renan.taskmanager.common.api;
 
 import com.renan.taskmanager.tasks.domain.InvalidStatusTransitionException;
 import com.renan.taskmanager.users.domain.InvalidCredentialsException;
+import com.renan.taskmanager.users.domain.InvalidPasswordException;
 import com.renan.taskmanager.users.domain.UserAlreadyExistsException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -53,6 +54,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(InvalidCredentialsException.class)
     public ResponseEntity<ErrorResponse> handleInvalidCredentials(InvalidCredentialsException ex, WebRequest request) {
         return buildResponse(HttpStatus.UNAUTHORIZED, ex.getMessage(), List.of(), request);
+    }
+
+    @ExceptionHandler(InvalidPasswordException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidPassword(InvalidPasswordException ex, WebRequest request) {
+        return buildResponse(HttpStatus.BAD_REQUEST, ex.getMessage(), List.of(), request);
     }
 
     @ExceptionHandler(AccessDeniedException.class)

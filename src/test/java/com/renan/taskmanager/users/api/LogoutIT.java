@@ -187,8 +187,8 @@ class LogoutIT extends AbstractIntegrationTest {
 
         String json = loginResult.getResponse().getContentAsString();
         return Map.of(
-                "accessToken", objectMapper.readTree(json).get("accessToken").asText(),
-                "refreshToken", objectMapper.readTree(json).get("refreshToken").asText()
+                "accessToken", objectMapper.readTree(json).get("accessToken").asString(),
+                "refreshToken", objectMapper.readTree(json).get("refreshToken").asString()
         );
     }
 }

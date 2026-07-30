@@ -3,7 +3,7 @@ package com.renan.taskmanager.common;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
-import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /**
  * Single source of truth for the PostgreSQL Testcontainer used by every
@@ -39,8 +39,8 @@ public class TestContainersConfig {
 
     @Bean
     @ServiceConnection
-    PostgreSQLContainer<?> postgresqlContainer() {
-        return new PostgreSQLContainer<>("postgres:16-alpine")
+    PostgreSQLContainer postgresqlContainer() {
+        return new PostgreSQLContainer("postgres:16-alpine")
                 .withDatabaseName("taskmanager_test")
                 .withUsername("test")
                 .withPassword("test");

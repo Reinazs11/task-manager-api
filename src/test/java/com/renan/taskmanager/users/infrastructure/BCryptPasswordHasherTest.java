@@ -7,8 +7,13 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
  * Tests for {@link BCryptPasswordHasher}.
@@ -100,16 +105,22 @@ class BCryptPasswordHasherTest {
         }
 
         @Test
-        @DisplayName("Should return false when the stored hash is null")
-        void shouldReturnFalseForNullHash() {
-            boolean matches = hasher.matches("Password123", null);
+        @DisplayName("Should run BCrypt against a dummy hash when the stored hash is null")
+        void shouldUseDummyHashForNullHash() {
+            PasswordEncoder encoder = mock(PasswordEncoder.class);
+            String dummyHash = "$2a$12$dummyHashForUnknownUsers";
+            when(encoder.encode(any())).thenReturn(dummyHash);
+            BCryptPasswordHasher isolatedHasher = new BCryptPasswordHasher(encoder);
+
+            boolean matches = isolatedHasher.matches("Password123", null);
 
             assertThat(matches).isFalse();
+            verify(encoder).matches("Password123", dummyHash);
         }
 
         @Test
-        @DisplayName("Should return false when the stored hash is blank")
-        void shouldReturnFalseForBlankHash() {
+        @DisplayName("Should run BCrypt against a dummy hash when the stored hash is blank")
+        void shouldUseDummyHashForBlankHash() {
             boolean matches = hasher.matches("Password123", "");
 
             assertThat(matches).isFalse();

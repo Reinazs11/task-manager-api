@@ -15,7 +15,7 @@ import java.io.IOException;
  * an unauthenticated request.
  *
  * <p><b>Why this exists (and is not just a lambda in {@link SecurityConfig}):</b>
- * Until Step 6 the security filter chain wrote its own ad-hoc JSON for 401
+ * The security filter chain previously wrote its own ad-hoc JSON for 401
  * ({@code {"status":401,"error":"Unauthorized",...}}) that diverged from
  * {@link com.renan.taskmanager.common.api.GlobalExceptionHandler} — it lacked
  * {@code timestamp}, {@code error} reason phrase and {@code path}. Clients could

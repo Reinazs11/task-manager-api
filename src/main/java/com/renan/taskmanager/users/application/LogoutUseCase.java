@@ -28,7 +28,7 @@ import java.util.UUID;
  *       caller cannot tell a forged token from a real one.</li>
  *   <li>Record the token's {@code jti} as revoked, with the token's own
  *       {@code exp} as the row's {@code expires_at}. The save is idempotent
- *       (see {@link RevokedRefreshTokenRepository#save}), so logging out the
+ *       (see {@link RevokedRefreshTokenRepository#revokeIfAbsent}), so logging out the
  *       same token twice is a no-op.</li>
  * </ol>
  *
@@ -40,9 +40,8 @@ import java.util.UUID;
  *
  * <p><b>Expired refresh tokens:</b> {@code parseRefreshToken} rejects them
  * (→ 401). That is intentional and harmless — an expired refresh token is
- * already useless, so revoking it would record a row that
- * {@link RevokedRefreshTokenRepository#isRevokedAndActive} returns false for
- * immediately. Treating it as 401 keeps the contract simple and the message
+ * already useless, so storing a revocation row would have no value.
+ * Treating it as 401 keeps the contract simple and the message
  * indistinguishable from any other invalid token.</p>
  *
  * <p><b>Why is logout not authenticated (no access JWT required)?</b>
@@ -84,7 +83,7 @@ public class LogoutUseCase {
         UUID userId = jwtService.extractUserId(claims);
         Instant expiresAt = claims.getExpiration().toInstant();
 
-        revokedTokenRepository.save(RevokedRefreshToken.reconstitute(
+        revokedTokenRepository.revokeIfAbsent(RevokedRefreshToken.reconstitute(
                 jti, UserId.of(userId), clock.instant(), expiresAt));
         // Record after the revoke, inside the same tx. A logout is a security
         // signal worth keeping: "who explicitly ended their session, when".

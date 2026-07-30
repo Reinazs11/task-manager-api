@@ -74,12 +74,13 @@ class LogoutUseCaseTest {
             useCase.execute(refresh);
 
             ArgumentCaptor<RevokedRefreshToken> captor = ArgumentCaptor.forClass(RevokedRefreshToken.class);
-            verify(revokedTokenRepository).save(captor.capture());
+            verify(revokedTokenRepository).revokeIfAbsent(captor.capture());
             RevokedRefreshToken recorded = captor.getValue();
             assertThat(recorded.jti()).isEqualTo(jwtService.extractJti(claims));
             assertThat(recorded.userId().value()).isEqualTo(userId);
             assertThat(recorded.revokedAt()).isEqualTo(NOW);
             assertThat(recorded.expiresAt()).isEqualTo(claims.getExpiration().toInstant());
+            verify(auditRecorder).recordLogout(recorded.userId());
         }
 
         @Test
@@ -101,7 +102,7 @@ class LogoutUseCaseTest {
             assertThatThrownBy(() -> useCase.execute("not-a-jwt"))
                     .isInstanceOf(InvalidCredentialsException.class);
 
-            verify(revokedTokenRepository, never()).save(any());
+            verify(revokedTokenRepository, never()).revokeIfAbsent(any());
         }
 
         @Test
@@ -112,7 +113,7 @@ class LogoutUseCaseTest {
             assertThatThrownBy(() -> useCase.execute(access))
                     .isInstanceOf(InvalidCredentialsException.class);
 
-            verify(revokedTokenRepository, never()).save(any());
+            verify(revokedTokenRepository, never()).revokeIfAbsent(any());
         }
     }
 

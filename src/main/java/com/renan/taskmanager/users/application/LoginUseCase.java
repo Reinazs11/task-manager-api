@@ -13,6 +13,7 @@ import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -73,23 +74,23 @@ public class LoginUseCase {
     }
 
     public TokenResponse execute(String email, String plainPassword) {
-        Email emailVo = new Email(email);
-
-        User user = userRepository.findByEmail(emailVo)
-                .orElseThrow(this::recordFailureAndThrow);
-
-        if (!passwordHasher.matches(plainPassword, user.getPassword().value())) {
-            throw recordFailureAndThrow();
-        }
-
+        User user = authenticate(email, plainPassword);
         UUID userId = user.getId().value();
         String userEmail = user.getEmail().value();
-
         String accessToken = jwtService.generateAccessToken(userId, userEmail);
         String refreshToken = jwtService.generateRefreshToken(userId, userEmail);
-
         recordSuccess(user.getId());
         return TokenResponse.of(accessToken, refreshToken, accessTtlMs, refreshTtlMs);
+    }
+
+    private User authenticate(String email, String plainPassword) {
+        Optional<User> candidate = userRepository.findByEmail(new Email(email));
+        String storedHash = candidate.map(user -> user.getPassword().value()).orElse(null);
+        boolean passwordMatches = passwordHasher.matches(plainPassword, storedHash);
+        if (candidate.isEmpty() || !passwordMatches) {
+            throw recordFailureAndThrow();
+        }
+        return candidate.orElseThrow();
     }
 
     private void recordSuccess(UserId actor) {

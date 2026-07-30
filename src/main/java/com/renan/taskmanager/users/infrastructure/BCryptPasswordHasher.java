@@ -20,17 +20,21 @@ import org.springframework.stereotype.Component;
  * encoders could drift apart if one was changed and the other was not. Now
  * the cost lives in one place ({@code SecurityConfig.passwordEncoder}).</p>
  *
- * <p><b>Cost 12:</b> aligns with OWASP 2026 recommendations. Each cost point
- * doubles compute time — 12 is the floor for new deployments, with headroom
- * to raise as hardware improves.</p>
+ * <p><b>Cost 12:</b> retained for project compatibility. OWASP prefers
+ * Argon2id for new systems; BCrypt remains an accepted fallback when its
+ * 72-byte input limit is enforced.</p>
  */
 @Component
 public class BCryptPasswordHasher implements PasswordHasher {
 
+    private static final String DUMMY_PASSWORD = "dummy-password-never-used-for-login";
+
     private final PasswordEncoder encoder;
+    private final String dummyHash;
 
     public BCryptPasswordHasher(PasswordEncoder encoder) {
         this.encoder = encoder;
+        this.dummyHash = encoder.encode(DUMMY_PASSWORD);
     }
 
     @Override
@@ -40,9 +44,7 @@ public class BCryptPasswordHasher implements PasswordHasher {
 
     @Override
     public boolean matches(String plainAttempt, String hash) {
-        if (hash == null || hash.isBlank()) {
-            return false;
-        }
-        return encoder.matches(plainAttempt, hash);
+        String hashToCheck = hash == null || hash.isBlank() ? dummyHash : hash;
+        return encoder.matches(plainAttempt, hashToCheck);
     }
 }

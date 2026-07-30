@@ -3,6 +3,7 @@ package com.renan.taskmanager.users.application;
 import com.renan.taskmanager.common.audit.application.AuditEventRecorder;
 import com.renan.taskmanager.users.api.UserResponse;
 import com.renan.taskmanager.users.domain.Email;
+import com.renan.taskmanager.users.domain.InvalidPasswordException;
 import com.renan.taskmanager.users.domain.Password;
 import com.renan.taskmanager.users.domain.PasswordHasher;
 import com.renan.taskmanager.users.domain.User;
@@ -141,7 +142,7 @@ class RegisterUserUseCaseTest {
 
             // "weak" fails the strength rules (no uppercase, no digit, <8 chars).
             assertThatThrownBy(() -> useCase.execute("renan@example.com", "weak", null))
-                    .isInstanceOf(IllegalArgumentException.class);
+                    .isInstanceOf(InvalidPasswordException.class);
 
             verify(passwordHasher, never()).hash(any());
             verify(userRepository, never()).save(any());

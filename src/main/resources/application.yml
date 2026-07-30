@@ -2,46 +2,36 @@ spring:
   application:
     name: task-manager-api
 
-  # Profile padrão: development. Sobrescrever via env SPRING_PROFILES_ACTIVE.
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:dev}
 
   datasource:
-    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:taskmanager}
+    url: ${JDBC_DATABASE_URL:jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:taskmanager}}
     username: ${DB_USER:taskmanager}
     password: ${DB_PASSWORD:taskmanager}
     driver-class-name: org.postgresql.Driver
 
   jpa:
-    # ddl-auto=validate em todos os perfis. Flyway é o dono do schema: ele cria
-    # as tabelas em V1__init_schema.sql (e migrações futuras) antes do Hibernate
-    # validar. Manter ddl-auto=update permitiria ao Hibernate desync do schema
-    # versionado — exatamente o que Flyway evita.
     hibernate:
       ddl-auto: ${DDL_AUTO:validate}
-    open-in-view: false  # Anti-pattern: fecha sessão na view. Sempre false.
+    open-in-view: false
     properties:
       hibernate:
         format_sql: true
         jdbc.lob.non_contextual_creation: true
 
   flyway:
-    # Padrão do Spring Boot é enabled=true; declaramos explicitamente para
-    # deixar a intenção visível em um único arquivo de configuração.
     enabled: true
     locations: classpath:db/migration
 
   docker:
     compose:
-      enabled: false  # Gerenciamos via docker-compose manualmente.
+      enabled: false
 
 server:
-  port: ${SERVER_PORT:8080}
+  port: ${PORT:${SERVER_PORT:8080}}
 
-# Actuator: expõe health (liveness/readiness público) e prometheus (métricas, JWT).
-# Nunca expor /env, /beans, /heapdump etc. em qualquer perfil — vazamento de config.
-# /actuator/prometheus é protegido por JWT (cai em anyRequest().authenticated()
-# no SecurityConfig — ver DECISIONS.md #19). Apenas /actuator/health é permitAll.
+# Expose public health and authenticated Prometheus metrics only.
 management:
   endpoints:
     web:
@@ -49,25 +39,18 @@ management:
         include: health,prometheus
   endpoint:
     health:
-      # Não expor detalhes (componentes, discos, etc.) sem auth — só o status UP/DOWN.
+      # Do not disclose component details without authentication.
       show-details: never
-  # Prometheus registry. A chave é registry-first
-  # (management.<registry>.metrics.export.enabled), NÃO metrics-first — ver
-  # OnMetricsExportEnabledCondition.getProductOutcome(). Explicitamos para deixar
-  # a intenção visível e blindar contra um default global sendo false.
   prometheus:
     metrics:
       export:
         enabled: true
   metrics:
     distribution:
-      # Histograma para http.server.requests: habilita buckets no Prometheus
-      # exposition, permitindo calcular p95/p99 com histogram_quantile() server-side.
-      # Sem isto o registry publica apenas sum/count (média), insuficiente para SLOs.
       percentiles-histogram:
         http.server.requests: true
 
-# Documentação OpenAPI
+# OpenAPI documentation
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
@@ -76,19 +59,17 @@ springdoc:
     path: /v3/api-docs
   default-produces-media-type: application/json
 
-# Configuração JWT (valores sensíveis vêm de variáveis de ambiente em prod)
+# JWT configuration
 app:
   jwt:
     secret: ${JWT_SECRET:dGhpcy1pcy1hLWRldmVsb3BtZW50LWp3dC1zZWNyZXQta2V5LWRvLW5vdC11c2UtaW4tcHJvZHVjdGlvbi1wbGVhc2U=}
-    access-token-expiration-ms: 900000      # 15 minutos
-    refresh-token-expiration-ms: 604800000  # 7 dias
+    access-token-expiration-ms: 900000      # 15 minutes
+    refresh-token-expiration-ms: 604800000  # 7 days
     # iss/aud claims: defense-in-depth. Even in a single-service API, if
     # another service ever shares this signing key its tokens would be valid
     # here unless the audience is checked.
     issuer: ${JWT_ISSUER:task-manager-api}
     audience: ${JWT_AUDIENCE:task-manager-api-users}
-  api:
-    version: ${APP_VERSION:0.1.0}
   cors:
     # Origins allowed to make credentialed (cookie/Auth header) browser requests.
     # Dev default covers the typical Vite/React dev server. In prod, override

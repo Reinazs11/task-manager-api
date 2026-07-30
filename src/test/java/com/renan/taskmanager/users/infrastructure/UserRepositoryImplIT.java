@@ -5,12 +5,13 @@ import com.renan.taskmanager.users.application.UserMapperImpl;
 import com.renan.taskmanager.users.domain.Email;
 import com.renan.taskmanager.users.domain.Password;
 import com.renan.taskmanager.users.domain.User;
+import com.renan.taskmanager.users.domain.UserAlreadyExistsException;
 import com.renan.taskmanager.users.domain.UserRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
-import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
+import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.context.annotation.Import;
 
 import java.util.Optional;
@@ -137,6 +138,6 @@ class UserRepositoryImplIT {
         org.assertj.core.api.Assertions.assertThatThrownBy(() -> {
             userRepository.save(user2);
             userJpaRepository.flush();  // force the second INSERT to trigger the violation
-        }).isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+        }).isInstanceOf(UserAlreadyExistsException.class);
     }
 }

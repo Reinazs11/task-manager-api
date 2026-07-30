@@ -10,8 +10,8 @@ import com.renan.taskmanager.users.infrastructure.UserJpaRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
-import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
+import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -59,6 +59,7 @@ class ProjectRepositoryImplIT {
      */
     private UserId seedOwner() {
         UserEntity owner = UserEntity.builder()
+                .id(UUID.randomUUID())
                 .email(java.util.UUID.randomUUID() + "@it.example.com")
                 .passwordHash("$2a$12$placeholderhashforitrequiredtobevalidformat00")
                 .name("IT Owner")

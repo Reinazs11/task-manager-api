@@ -72,7 +72,7 @@ class AuditFlowIT extends AbstractIntegrationTest {
                 .andExpect(status().isOk())
                 .andReturn();
         return objectMapper.readTree(login.getResponse().getContentAsString())
-                .get("accessToken").asText();
+                .get("accessToken").asString();
     }
 
     private java.util.UUID createProject(String token, String name) throws Exception {
@@ -83,7 +83,7 @@ class AuditFlowIT extends AbstractIntegrationTest {
                 .andExpect(status().isCreated())
                 .andReturn();
         return java.util.UUID.fromString(objectMapper
-                .readTree(result.getResponse().getContentAsString()).get("id").asText());
+                .readTree(result.getResponse().getContentAsString()).get("id").asString());
     }
 
     private java.util.UUID createTask(String token, java.util.UUID projectId, String title) throws Exception {
@@ -95,7 +95,7 @@ class AuditFlowIT extends AbstractIntegrationTest {
                 .andExpect(status().isCreated())
                 .andReturn();
         return java.util.UUID.fromString(objectMapper
-                .readTree(result.getResponse().getContentAsString()).get("id").asText());
+                .readTree(result.getResponse().getContentAsString()).get("id").asString());
     }
 
     private List<AuditEvent> eventsFor(java.util.UUID userId) {
