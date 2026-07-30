@@ -66,7 +66,7 @@ class ErrorResponseContractIT extends AbstractIntegrationTest {
                 .andExpect(status().isOk())
                 .andReturn();
         return objectMapper.readTree(result.getResponse().getContentAsString())
-                .get("accessToken").asText();
+                .get("accessToken").asString();
     }
 
     private UUID createProject(String token, String name) throws Exception {
@@ -78,7 +78,7 @@ class ErrorResponseContractIT extends AbstractIntegrationTest {
                 .andExpect(status().isCreated())
                 .andReturn();
         return UUID.fromString(objectMapper.readTree(result.getResponse().getContentAsString())
-                .get("id").asText());
+                .get("id").asString());
     }
 
     private UUID createTask(String token, UUID projectId, String title) throws Exception {
@@ -90,7 +90,7 @@ class ErrorResponseContractIT extends AbstractIntegrationTest {
                 .andExpect(status().isCreated())
                 .andReturn();
         return UUID.fromString(objectMapper.readTree(result.getResponse().getContentAsString())
-                .get("id").asText());
+                .get("id").asString());
     }
 
     // ========================================================================
@@ -385,7 +385,7 @@ class ErrorResponseContractIT extends AbstractIntegrationTest {
             // The anti-leak: the client must never see the original exception message,
             // class name, or any value embedded in it (e.g. the synthetic "hunter2"
             // password dropped into TestErrorController).
-            String message = objectMapper.readTree(content).get("message").asText();
+            String message = objectMapper.readTree(content).get("message").asString();
             org.assertj.core.api.Assertions.assertThat(message).isEqualTo("Unexpected error");
             org.assertj.core.api.Assertions.assertThat(content)
                     .doesNotContain("INTERNAL_SECRET_DO_NOT_LEAK")

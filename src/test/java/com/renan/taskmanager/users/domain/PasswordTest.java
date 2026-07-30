@@ -4,6 +4,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.util.Objects;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -81,7 +83,7 @@ class PasswordTest {
         @DisplayName("Should reject a password shorter than 8 characters")
         void shouldRejectShortPassword() {
             assertThatThrownBy(() -> new Password("Ab1"))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(InvalidPasswordException.class)
                     .hasMessageContaining("8");
         }
 
@@ -102,7 +104,7 @@ class PasswordTest {
             // 7 chars: one below the minimum. Distinct from the short-password
             // case above so the boundary is covered from both sides.
             assertThatThrownBy(() -> new Password("Abcdef1"))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(InvalidPasswordException.class)
                     .hasMessageContaining("8");
         }
 
@@ -110,7 +112,7 @@ class PasswordTest {
         @DisplayName("Should reject a password without an uppercase letter")
         void shouldRejectPasswordWithoutUppercase() {
             assertThatThrownBy(() -> new Password("password123"))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(InvalidPasswordException.class)
                     .hasMessageContaining("uppercase");
         }
 
@@ -118,7 +120,7 @@ class PasswordTest {
         @DisplayName("Should reject a password without a lowercase letter")
         void shouldRejectPasswordWithoutLowercase() {
             assertThatThrownBy(() -> new Password("PASSWORD123"))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(InvalidPasswordException.class)
                     .hasMessageContaining("lowercase");
         }
 
@@ -126,7 +128,7 @@ class PasswordTest {
         @DisplayName("Should reject a password without a digit")
         void shouldRejectPasswordWithoutDigit() {
             assertThatThrownBy(() -> new Password("StrongPassword"))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(InvalidPasswordException.class)
                     .hasMessageContaining("digit");
         }
 
@@ -134,7 +136,37 @@ class PasswordTest {
         @DisplayName("Should reject null")
         void shouldRejectNull() {
             assertThatThrownBy(() -> new Password(null))
-                    .isInstanceOf(IllegalArgumentException.class);
+                    .isInstanceOf(InvalidPasswordException.class);
+        }
+
+        @Test
+        @DisplayName("Should accept exactly 72 UTF-8 bytes")
+        void shouldAcceptSeventyTwoUtf8Bytes() {
+            String value = "Aa1" + "é".repeat(34) + "x";
+
+            Password password = new Password(value);
+
+            assertThat(password.value()).isEqualTo(value);
+        }
+
+        @Test
+        @DisplayName("Should reject 73 ASCII bytes")
+        void shouldRejectSeventyThreeAsciiBytes() {
+            String value = "Aa1" + "x".repeat(70);
+
+            assertThatThrownBy(() -> new Password(value))
+                    .isInstanceOf(InvalidPasswordException.class)
+                    .hasMessageContaining("72 UTF-8 bytes");
+        }
+
+        @Test
+        @DisplayName("Should reject 73 UTF-8 bytes with multibyte characters")
+        void shouldRejectSeventyThreeUtf8Bytes() {
+            String value = "Aa1" + "é".repeat(35);
+
+            assertThatThrownBy(() -> new Password(value))
+                    .isInstanceOf(InvalidPasswordException.class)
+                    .hasMessageContaining("72 UTF-8 bytes");
         }
     }
 
@@ -149,6 +181,7 @@ class PasswordTest {
             Password b = new Password("Password123");
 
             assertThat(a).isEqualTo(b).hasSameHashCodeAs(b);
+            assertThat(a.hashCode()).isEqualTo(Objects.hash("Password123"));
         }
 
         @Test

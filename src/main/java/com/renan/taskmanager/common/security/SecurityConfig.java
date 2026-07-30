@@ -143,8 +143,8 @@ public class SecurityConfig {
      * this bean rather than constructing its own encoder, so the cost factor
      * lives in exactly one place.</p>
      *
-     * <p><b>Cost 12:</b> aligns with OWASP 2026 recommendations. Each cost
-     * point doubles compute time; 12 is the floor for new deployments.</p>
+     * <p><b>Cost 12:</b> retained for compatibility. Password validation
+     * enforces BCrypt's 72-byte input limit.</p>
      */
     @Bean
     public PasswordEncoder passwordEncoder() {

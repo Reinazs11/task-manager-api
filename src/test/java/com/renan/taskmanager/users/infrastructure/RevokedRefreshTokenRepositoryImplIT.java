@@ -15,8 +15,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
-import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
+import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.context.annotation.Import;
 
 import java.time.Instant;
@@ -77,65 +77,31 @@ class RevokedRefreshTokenRepositoryImplIT {
     }
 
     @Nested
-    @DisplayName("save + isRevokedAndActive")
-    class SaveAndCheck {
+    @DisplayName("Atomic revocation")
+    class AtomicRevocation {
 
         @Test
-        @DisplayName("Freshly revoked token is reported as revoked while unexpired")
-        void shouldReportRevokedTokenAsActive() {
+        @DisplayName("First revocation acquires the token")
+        void shouldAcquireFreshToken() {
             UUID jti = UUID.randomUUID();
-            repository.save(token(jti,
+            boolean acquired = repository.revokeIfAbsent(token(jti,
                     Instant.parse("2026-07-27T10:00:00Z"),
                     Instant.parse("2026-08-03T10:00:00Z")));
 
-            boolean revoked = repository.isRevokedAndActive(
-                    jti, Instant.parse("2026-07-28T00:00:00Z"));
-
-            assertThat(revoked).isTrue();
+            assertThat(acquired).isTrue();
+            assertThat(jpaRepository.existsById(jti)).isTrue();
         }
 
         @Test
-        @DisplayName("Unknown jti is not revoked")
-        void shouldReportUnknownJtiAsNotRevoked() {
-            boolean revoked = repository.isRevokedAndActive(
-                    UUID.randomUUID(), Instant.parse("2026-07-28T00:00:00Z"));
-
-            assertThat(revoked).isFalse();
-        }
-
-        @Test
-        @DisplayName("Revoked token past its own expiry is no longer 'active' (dead row)")
-        void shouldNotReportExpiredRevocationAsActive() {
+        @DisplayName("Second revocation does not acquire the token")
+        void shouldRejectDuplicateAtomically() {
             UUID jti = UUID.randomUUID();
-            repository.save(token(jti,
-                    Instant.parse("2026-07-20T10:00:00Z"),
-                    Instant.parse("2026-07-27T10:00:00Z")));  // already expired
-
-            boolean revoked = repository.isRevokedAndActive(
-                    jti, Instant.parse("2026-07-28T00:00:00Z"));
-
-            assertThat(revoked).isFalse();
-        }
-    }
-
-    @Nested
-    @DisplayName("Idempotency")
-    class Idempotency {
-
-        @Test
-        @DisplayName("Saving the same jti twice does not throw and keeps one row")
-        void shouldBeIdempotent() {
-            UUID jti = UUID.randomUUID();
-            RevokedRefreshToken first = token(jti,
+            RevokedRefreshToken revocation = token(jti,
                     Instant.parse("2026-07-27T10:00:00Z"),
                     Instant.parse("2026-08-03T10:00:00Z"));
 
-            repository.save(first);
-            repository.save(RevokedRefreshToken.reconstitute(
-                    jti, ownerId,
-                    Instant.parse("2026-07-27T11:00:00Z"),
-                    Instant.parse("2026-08-03T10:00:00Z")));
-
+            assertThat(repository.revokeIfAbsent(revocation)).isTrue();
+            assertThat(repository.revokeIfAbsent(revocation)).isFalse();
             assertThat(jpaRepository.count()).isEqualTo(1);
         }
     }
@@ -149,10 +115,10 @@ class RevokedRefreshTokenRepositoryImplIT {
         void shouldRemoveOnlyExpiredRows() {
             UUID expiredJti = UUID.randomUUID();
             UUID activeJti = UUID.randomUUID();
-            repository.save(token(expiredJti,
+            repository.revokeIfAbsent(token(expiredJti,
                     Instant.parse("2026-07-20T10:00:00Z"),
                     Instant.parse("2026-07-27T10:00:00Z")));
-            repository.save(token(activeJti,
+            repository.revokeIfAbsent(token(activeJti,
                     Instant.parse("2026-07-27T10:00:00Z"),
                     Instant.parse("2026-08-03T10:00:00Z")));
 

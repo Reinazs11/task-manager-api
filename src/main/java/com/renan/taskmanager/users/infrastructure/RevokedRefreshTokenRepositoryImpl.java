@@ -1,12 +1,10 @@
 package com.renan.taskmanager.users.infrastructure;
 
-import com.renan.taskmanager.users.application.RevokedRefreshTokenMapper;
 import com.renan.taskmanager.users.domain.RevokedRefreshToken;
 import com.renan.taskmanager.users.domain.RevokedRefreshTokenRepository;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
-import java.util.UUID;
 
 /**
  * Adapter: implements the domain {@link RevokedRefreshTokenRepository} port
@@ -20,28 +18,22 @@ import java.util.UUID;
 public class RevokedRefreshTokenRepositoryImpl implements RevokedRefreshTokenRepository {
 
     private final RevokedRefreshTokenJpaRepository jpaRepository;
-    private final RevokedRefreshTokenMapper mapper;
 
-    public RevokedRefreshTokenRepositoryImpl(RevokedRefreshTokenJpaRepository jpaRepository,
-                                             RevokedRefreshTokenMapper mapper) {
+    public RevokedRefreshTokenRepositoryImpl(RevokedRefreshTokenJpaRepository jpaRepository) {
         this.jpaRepository = jpaRepository;
-        this.mapper = mapper;
     }
 
     @Override
-    public void save(RevokedRefreshToken token) {
+    public boolean revokeIfAbsent(RevokedRefreshToken token) {
         // Idempotency: revoking the same jti twice is a no-op. We check first
         // rather than relying on a caught PK violation — exception flow is
         // harder to reason about and obscures real integrity errors.
-        if (jpaRepository.existsById(token.jti())) {
-            return;
-        }
-        jpaRepository.save(mapper.toEntity(token));
-    }
-
-    @Override
-    public boolean isRevokedAndActive(UUID jti, Instant now) {
-        return jpaRepository.existsByJtiAndExpiresAtAfter(jti, now);
+        return jpaRepository.revokeIfAbsent(
+                token.jti(),
+                token.userId().value(),
+                token.revokedAt(),
+                token.expiresAt()
+        ) == 1;
     }
 
     @Override

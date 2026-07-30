@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
@@ -42,5 +43,18 @@ class OpenApiProdProfileIT extends AbstractIntegrationTest {
     void shouldDisableApiDocsInProd() throws Exception {
         mockMvc.perform(get("/v3/api-docs"))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("Should keep the standard authentication error contract in prod")
+    void shouldKeepAuthenticationContractInProd() throws Exception {
+        mockMvc.perform(get("/api/v1/projects"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status").value(401))
+                .andExpect(jsonPath("$.error").value("Unauthorized"))
+                .andExpect(jsonPath("$.message").isNotEmpty())
+                .andExpect(jsonPath("$.path").value("/api/v1/projects"))
+                .andExpect(jsonPath("$.timestamp").isNotEmpty())
+                .andExpect(jsonPath("$.details").isArray());
     }
 }

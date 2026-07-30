@@ -27,14 +27,9 @@ import java.util.UUID;
  *       all centralized in {@link JwtService#parseRefreshToken}. Any failure
  *       (bad signature, expired, wrong type, wrong issuer/audience, malformed)
  *       surfaces as {@link JwtException}.</li>
- *   <li>Look up the token's {@code jti} in {@link RevokedRefreshTokenRepository}.
- *       If the token has already been rotated out (or revoked by logout),
- *       reject it. Same {@link InvalidCredentialsException} as a bad token —
- *       anti-enumeration (see DECISIONS.md #6).</li>
+ *   <li>Atomically insert the token's {@code jti} in the revocation store.
+ *       Only the request that acquires this one-time-use claim may continue.</li>
  *   <li>Re-issue a fresh access + refresh pair (new {@code jti}s).</li>
- *   <li>Record the OLD refresh token's {@code jti} as revoked, so a replay of
- *       the old token is rejected on the next {@code /auth/refresh}. This is
- *       the one-time-use guarantee.</li>
  * </ol>
  *
  * <p><b>One-time-use rotation:</b> the old refresh token is revoked in the same
@@ -84,45 +79,34 @@ public class RefreshTokenUseCase {
 
     @Transactional
     public TokenResponse execute(String refreshToken) {
+        Claims claims = parseToken(refreshToken);
+        UUID userId = jwtService.extractUserId(claims);
+        acquireOneTimeUse(claims, userId);
+
+        String email = jwtService.extractEmail(claims);
+        String accessToken = jwtService.generateAccessToken(userId, email);
+        String newRefreshToken = jwtService.generateRefreshToken(userId, email);
+        auditRecorder.recordRefreshRotated(UserId.of(userId));
+        return TokenResponse.of(accessToken, newRefreshToken, accessTtlMs, refreshTtlMs);
+    }
+
+    private Claims parseToken(String refreshToken) {
         Claims claims;
         try {
             claims = jwtService.parseRefreshToken(refreshToken);
         } catch (JwtException e) {
-            // Collapse every structural failure to the same 401 — anti-enumeration:
-            // callers must not learn whether the token was expired, tampered,
-            // or the wrong type.
             throw new InvalidCredentialsException();
         }
+        return claims;
+    }
 
+    private void acquireOneTimeUse(Claims claims, UUID userId) {
         UUID jti = jwtService.extractJti(claims);
         Instant now = clock.instant();
-
-        // One-time-use / post-logout check. Reuses InvalidCredentialsException
-        // so a revoked token is indistinguishable from a structurally invalid
-        // one — anti-enumeration (DECISIONS.md #6).
-        if (revokedTokenRepository.isRevokedAndActive(jti, now)) {
+        Instant oldExpiry = claims.getExpiration().toInstant();
+        if (!revokedTokenRepository.revokeIfAbsent(RevokedRefreshToken.reconstitute(
+                jti, UserId.of(userId), now, oldExpiry))) {
             throw new InvalidCredentialsException();
         }
-
-        UUID userId = jwtService.extractUserId(claims);
-        String email = jwtService.extractEmail(claims);
-
-        // Record the OLD refresh token as revoked in the SAME transaction as
-        // the new pair's issuance. Atomicity matters: if the new issuance
-        // fails, the old token must remain usable; if the revocation insert
-        // fails, no new tokens are minted.
-        Instant oldExpiry = claims.getExpiration().toInstant();
-        revokedTokenRepository.save(RevokedRefreshToken.reconstitute(
-                jti, UserId.of(userId), now, oldExpiry));
-
-        String newAccessToken = jwtService.generateAccessToken(userId, email);
-        String newRefreshToken = jwtService.generateRefreshToken(userId, email);
-
-        // Record the rotation inside the same tx. A refresh rotation is a
-        // security-relevant event (the caller proved possession of a valid
-        // refresh token) and the actor is the token's subject.
-        auditRecorder.recordRefreshRotated(UserId.of(userId));
-
-        return TokenResponse.of(newAccessToken, newRefreshToken, accessTtlMs, refreshTtlMs);
     }
 }

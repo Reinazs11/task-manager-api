@@ -1,7 +1,6 @@
 package com.renan.taskmanager.users.domain;
 
 import java.time.Instant;
-import java.util.UUID;
 
 /**
  * Port (DDD): contract for the refresh-token revocation store.
@@ -15,20 +14,21 @@ import java.util.UUID;
  * and {@code LogoutUseCase} — both in {@code users.application}. Keeping it here
  * preserves context isolation: {@code tasks} never references it.</p>
  *
- * <p><b>Why no {@code save} return value?</b> A revoked-token record is
+ * <p><b>Why does the insert return a boolean?</b> A revoked-token record is
  * immutable after insert — there is nothing to "refresh" on the caller side.
- * The {@code save} is fire-and-forget; idempotency is the caller's
- * responsibility (see {@link #save} below).</p>
+ * The result tells the caller whether it atomically acquired this token.</p>
  */
 public interface RevokedRefreshTokenRepository {
 
     /**
-     * Records a refresh-token revocation. Idempotent: revoking the same
+     * Atomically records a refresh-token revocation. Revoking the same
      * {@code jti} twice MUST NOT throw — the second call is a no-op (the row
      * already exists). This lets {@code LogoutUseCase} handle "already revoked"
      * transparently instead of branching on it.
+     *
+     * @return true only when this call inserted the revocation
      */
-    void save(RevokedRefreshToken token);
+    boolean revokeIfAbsent(RevokedRefreshToken token);
 
     /**
      * Returns {@code true} if a refresh token with the given {@code jti} has
@@ -40,8 +40,6 @@ public interface RevokedRefreshTokenRepository {
      * <p>Used by {@code RefreshTokenUseCase} to enforce one-time-use rotation
      * and post-logout rejection.</p>
      */
-    boolean isRevokedAndActive(UUID jti, Instant now);
-
     /**
      * Bulk-purges rows whose {@code expires_at} has passed. Returns the number
      * of rows removed so a future scheduler (limitation [5]) can log it.

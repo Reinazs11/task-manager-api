@@ -29,6 +29,13 @@ app:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:}
 
 logging:
+  structured:
+    format:
+      console: logstash
+    json:
+      add:
+        service.name: task-manager-api
+        deployment.environment: prod
   level:
     com.renan.taskmanager: INFO
     org.hibernate.SQL: WARN

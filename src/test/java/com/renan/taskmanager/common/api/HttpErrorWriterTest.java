@@ -1,7 +1,6 @@
 package com.renan.taskmanager.common.api;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
@@ -26,7 +25,7 @@ class HttpErrorWriterTest {
     // Mirrors the Spring Boot-configured mapper (which auto-registers JSR310 so
     // ErrorResponse#timestamp, an Instant, serializes correctly). A bare
     // ObjectMapper would fail on the date/time type.
-    private final HttpErrorWriter writer = new HttpErrorWriter(new ObjectMapper().registerModule(new JavaTimeModule()));
+    private final HttpErrorWriter writer = new HttpErrorWriter(new ObjectMapper());
 
     @Test
     @DisplayName("Should write the status, JSON content-type and the six-field body")

@@ -109,6 +109,7 @@ class LoginUseCaseTest {
 
             // The two tokens must be different (different type claim, different jti)
             assertThat(response.accessToken()).isNotEqualTo(response.refreshToken());
+            verify(auditRecorder).recordLoginSucceeded(persisted.getId());
         }
 
         @Test
@@ -155,10 +156,12 @@ class LoginUseCaseTest {
 
             assertThatThrownBy(() -> useCase.execute("ghost@example.com", "Password123"))
                     .isInstanceOf(InvalidCredentialsException.class);
+            verify(auditRecorder).recordLoginFailed();
 
-            // Security: must NEVER invoke the password hasher when the user doesn't exist.
-            // This avoids timing-based user enumeration (hasher is slow by design).
-            verify(passwordHasher, never()).matches(anyString(), anyString());
+            // Security: an unknown email must still execute the expensive password
+            // verification path. The hasher substitutes its process-local dummy hash
+            // when the stored hash is null.
+            verify(passwordHasher).matches("Password123", null);
         }
 
         @Test

@@ -1,5 +1,6 @@
 package com.renan.taskmanager.users.domain;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
 /**
@@ -16,19 +17,21 @@ import java.util.Objects;
  * <p><b>Strength rules (minimum acceptable for a portfolio):</p>
  * <ul>
  *   <li>8+ characters</li>
+ *   <li>72 UTF-8 bytes or fewer (BCrypt input limit)</li>
  *   <li>1 uppercase letter</li>
  *   <li>1 lowercase letter</li>
  *   <li>1 digit</li>
  * </ul>
  *
- * <p><b>Known limitation:</b> the plain password is held in a String, which is
- * interned by the JVM and cannot be explicitly cleared. For production-grade
- * security we'd use {@code char[]} and zero it after use. Documented here as a
- * conscious trade-off: portfolio simplicity over production hardening.</p>
+ * <p><b>Known limitation:</b> the plain password is held in an immutable
+ * {@link String} and therefore cannot be explicitly cleared. A hardened
+ * credential pipeline would use {@code char[]} and zero it after use. This
+ * project accepts the trade-off to keep its HTTP binding straightforward.</p>
  */
 public final class Password {
 
     private static final int MIN_LENGTH = 8;
+    private static final int MAX_UTF8_BYTES = 72;
 
     private final String value;
 
@@ -36,7 +39,7 @@ public final class Password {
      * Creates a validated Password.
      *
      * @param value plain password (will be validated, NOT hashed)
-     * @throws IllegalArgumentException if null or violates strength rules
+     * @throws InvalidPasswordException if null or violates strength rules
      */
     public Password(String value) {
         validate(value);
@@ -75,23 +78,35 @@ public final class Password {
     }
 
     private static void validate(String value) {
+        validateLength(value);
+        validateComposition(value);
+    }
+
+    private static void validateLength(String value) {
         if (value == null) {
-            throw new IllegalArgumentException("Password cannot be null");
+            throw new InvalidPasswordException("Password cannot be null");
         }
         if (value.length() < MIN_LENGTH) {
-            throw new IllegalArgumentException(
+            throw new InvalidPasswordException(
                     "Password must be at least " + MIN_LENGTH + " characters long");
         }
+        if (value.getBytes(StandardCharsets.UTF_8).length > MAX_UTF8_BYTES) {
+            throw new InvalidPasswordException(
+                    "Password must not exceed " + MAX_UTF8_BYTES + " UTF-8 bytes");
+        }
+    }
+
+    private static void validateComposition(String value) {
         if (!hasUppercase(value)) {
-            throw new IllegalArgumentException(
+            throw new InvalidPasswordException(
                     "Password must contain at least 1 uppercase letter");
         }
         if (!hasLowercase(value)) {
-            throw new IllegalArgumentException(
+            throw new InvalidPasswordException(
                     "Password must contain at least 1 lowercase letter");
         }
         if (!hasDigit(value)) {
-            throw new IllegalArgumentException(
+            throw new InvalidPasswordException(
                     "Password must contain at least 1 digit");
         }
     }

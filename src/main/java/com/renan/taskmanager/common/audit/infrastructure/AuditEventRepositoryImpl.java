@@ -6,6 +6,7 @@ import com.renan.taskmanager.common.audit.domain.AuditAction;
 import com.renan.taskmanager.common.audit.domain.AuditEvent;
 import com.renan.taskmanager.common.audit.domain.AuditEventRepository;
 import com.renan.taskmanager.common.domain.UserId;
+import jakarta.persistence.EntityManager;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
@@ -28,15 +29,19 @@ public class AuditEventRepositoryImpl implements AuditEventRepository, AuditEven
 
     private final AuditEventJpaRepository jpaRepository;
     private final AuditEventMapper mapper;
+    private final EntityManager entityManager;
 
-    public AuditEventRepositoryImpl(AuditEventJpaRepository jpaRepository, AuditEventMapper mapper) {
+    public AuditEventRepositoryImpl(AuditEventJpaRepository jpaRepository,
+                                    AuditEventMapper mapper,
+                                    EntityManager entityManager) {
         this.jpaRepository = jpaRepository;
         this.mapper = mapper;
+        this.entityManager = entityManager;
     }
 
     @Override
     public void save(AuditEvent event) {
-        jpaRepository.save(mapper.toEntity(event));
+        entityManager.persist(mapper.toEntity(event));
     }
 
     @Override

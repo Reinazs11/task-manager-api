@@ -14,6 +14,10 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MvcResult;
 
 import java.util.Map;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -85,8 +89,8 @@ class RefreshTokenIT extends AbstractIntegrationTest {
                     .andReturn();
 
             String responseJson = result.getResponse().getContentAsString();
-            String newAccess = objectMapper.readTree(responseJson).get("accessToken").asText();
-            String newRefresh = objectMapper.readTree(responseJson).get("refreshToken").asText();
+            String newAccess = objectMapper.readTree(responseJson).get("accessToken").asString();
+            String newRefresh = objectMapper.readTree(responseJson).get("refreshToken").asString();
 
             // Rotation: the new refresh MUST differ from the old one (jti differs).
             assertThat(newRefresh).isNotEqualTo(tokens.get("refreshToken"));
@@ -126,6 +130,26 @@ class RefreshTokenIT extends AbstractIntegrationTest {
                     .andExpect(jsonPath("$.message").exists())
                     .andExpect(jsonPath("$.path").exists())
                     .andExpect(jsonPath("$.details").exists());
+        }
+
+        @Test
+        @DisplayName("Two concurrent refreshes should produce exactly one 200 and one 401")
+        void shouldAllowOnlyOneConcurrentRotation() throws Exception {
+            String refreshToken = registerAndLogin(VALID_EMAIL, VALID_PASSWORD).get("refreshToken");
+            CountDownLatch ready = new CountDownLatch(2);
+            CountDownLatch start = new CountDownLatch(1);
+
+            try (var executor = Executors.newFixedThreadPool(2)) {
+                Future<Integer> first = executor.submit(
+                        () -> refreshConcurrently(refreshToken, ready, start));
+                Future<Integer> second = executor.submit(
+                        () -> refreshConcurrently(refreshToken, ready, start));
+                ready.await();
+                start.countDown();
+
+                assertThat(List.of(first.get(), second.get()))
+                        .containsExactlyInAnyOrder(200, 401);
+            }
         }
     }
 
@@ -200,9 +224,21 @@ class RefreshTokenIT extends AbstractIntegrationTest {
 
         String json = loginResult.getResponse().getContentAsString();
         return Map.of(
-                "accessToken", objectMapper.readTree(json).get("accessToken").asText(),
-                "refreshToken", objectMapper.readTree(json).get("refreshToken").asText()
+                "accessToken", objectMapper.readTree(json).get("accessToken").asString(),
+                "refreshToken", objectMapper.readTree(json).get("refreshToken").asString()
         );
+    }
+
+    private int refreshConcurrently(String token, CountDownLatch ready,
+                                    CountDownLatch start) throws Exception {
+        ready.countDown();
+        start.await();
+        return mockMvc.perform(post(REFRESH_URI)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("refreshToken", token))))
+                .andReturn()
+                .getResponse()
+                .getStatus();
     }
 
     /**

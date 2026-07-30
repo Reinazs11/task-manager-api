@@ -24,7 +24,6 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -86,8 +85,7 @@ class RefreshTokenUseCaseTest {
             UUID userId = UUID.randomUUID();
             String oldRefresh = mintRefresh(userId, "renan@example.com");
             Claims oldClaims = jwtService.parseRefreshToken(oldRefresh);
-            when(revokedTokenRepository.isRevokedAndActive(eq(jwtService.extractJti(oldClaims)), eq(NOW)))
-                    .thenReturn(false);
+            when(revokedTokenRepository.revokeIfAbsent(any())).thenReturn(true);
 
             // Act
             TokenResponse response = useCase.execute(oldRefresh);
@@ -99,12 +97,13 @@ class RefreshTokenUseCaseTest {
 
             // The OLD jti is recorded as revoked with the old token's own exp.
             ArgumentCaptor<RevokedRefreshToken> captor = ArgumentCaptor.forClass(RevokedRefreshToken.class);
-            verify(revokedTokenRepository).save(captor.capture());
+            verify(revokedTokenRepository).revokeIfAbsent(captor.capture());
             RevokedRefreshToken recorded = captor.getValue();
             assertThat(recorded.jti()).isEqualTo(jwtService.extractJti(oldClaims));
             assertThat(recorded.userId().value()).isEqualTo(userId);
             assertThat(recorded.revokedAt()).isEqualTo(NOW);
             assertThat(recorded.expiresAt()).isEqualTo(oldClaims.getExpiration().toInstant());
+            verify(auditRecorder).recordRefreshRotated(recorded.userId());
         }
     }
 
@@ -118,13 +117,13 @@ class RefreshTokenUseCaseTest {
             UUID userId = UUID.randomUUID();
             String refresh = mintRefresh(userId, "renan@example.com");
             UUID jti = jwtService.extractJti(jwtService.parseRefreshToken(refresh));
-            when(revokedTokenRepository.isRevokedAndActive(eq(jti), eq(NOW))).thenReturn(true);
+            when(revokedTokenRepository.revokeIfAbsent(any())).thenReturn(false);
 
             assertThatThrownBy(() -> useCase.execute(refresh))
                     .isInstanceOf(InvalidCredentialsException.class);
 
             // CRITICAL: a revoked token must not be rotated nor recorded again.
-            verify(revokedTokenRepository, never()).save(any());
+            verify(auditRecorder, never()).recordRefreshRotated(any());
         }
 
         @Test
@@ -135,7 +134,7 @@ class RefreshTokenUseCaseTest {
             UUID userId = UUID.randomUUID();
             String refresh = mintRefresh(userId, "renan@example.com");
             UUID jti = jwtService.extractJti(jwtService.parseRefreshToken(refresh));
-            when(revokedTokenRepository.isRevokedAndActive(eq(jti), eq(NOW))).thenReturn(true);
+            when(revokedTokenRepository.revokeIfAbsent(any())).thenReturn(false);
 
             String revokedMessage = catchMessage(() -> useCase.execute(refresh));
             String invalidMessage = catchMessage(() -> useCase.execute("not-a-jwt"));
@@ -154,7 +153,7 @@ class RefreshTokenUseCaseTest {
             assertThatThrownBy(() -> useCase.execute("this-is-not-a-jwt"))
                     .isInstanceOf(InvalidCredentialsException.class);
 
-            verify(revokedTokenRepository, never()).save(any());
+            verify(revokedTokenRepository, never()).revokeIfAbsent(any());
         }
     }
 

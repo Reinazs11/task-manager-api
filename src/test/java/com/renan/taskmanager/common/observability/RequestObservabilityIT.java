@@ -86,12 +86,12 @@ class RequestObservabilityIT extends AbstractIntegrationTest {
                         + "(wiring order) and populated the MDC")
                 .isTrue();
 
-        // And at least one event's message should reference the URI we hit.
-        boolean anyMessageReferencesUri = appender.list.stream()
-                .map(ILoggingEvent::getFormattedMessage)
-                .anyMatch(m -> m.contains("/api/v1/projects"));
-        assertThat(anyMessageReferencesUri)
-                .as("at least one log line should mention the requested URI")
+        boolean anyEventCarriesUri = appender.list.stream()
+                .flatMap(event -> event.getKeyValuePairs().stream())
+                .anyMatch(pair -> "uri".equals(pair.key)
+                        && "/api/v1/projects".equals(pair.value));
+        assertThat(anyEventCarriesUri)
+                .as("at least one structured log event should carry the requested URI")
                 .isTrue();
     }
 }

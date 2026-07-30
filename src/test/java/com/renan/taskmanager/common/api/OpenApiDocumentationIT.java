@@ -1,6 +1,6 @@
 package com.renan.taskmanager.common.api;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.renan.taskmanager.common.AbstractIntegrationTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -48,11 +48,11 @@ class OpenApiDocumentationIT extends AbstractIntegrationTest {
                     .andExpect(content().contentTypeCompatibleWith("application/json"))
                     .andExpect(jsonPath("$.openapi").isNotEmpty())
                     .andExpect(jsonPath("$.info.title").value("Task Manager API"))
-                    .andExpect(jsonPath("$.info.version").isNotEmpty())
+                    .andExpect(jsonPath("$.info.version").value("1.0.0"))
                     .andReturn();
 
             JsonNode root = objectMapper.readTree(result.getResponse().getContentAsString());
-            assertThat(root.get("openapi").asText()).startsWith("3.");
+            assertThat(root.get("openapi").asString()).startsWith("3.");
         }
     }
 
@@ -76,9 +76,9 @@ class OpenApiDocumentationIT extends AbstractIntegrationTest {
 
             // If OpenApiConfig is removed or the scheme renamed, these assertions fail.
             assertThat(scheme.isMissingNode()).isFalse();
-            assertThat(scheme.path("type").asText()).isEqualTo("http");
-            assertThat(scheme.path("scheme").asText()).isEqualTo("bearer");
-            assertThat(scheme.path("bearerFormat").asText()).isEqualTo("JWT");
+            assertThat(scheme.path("type").asString()).isEqualTo("http");
+            assertThat(scheme.path("scheme").asString()).isEqualTo("bearer");
+            assertThat(scheme.path("bearerFormat").asString()).isEqualTo("JWT");
         }
     }
 

@@ -23,7 +23,6 @@ class TaskManagerApplicationIT extends AbstractIntegrationTest {
 
     @Test
     void contextLoads() {
-        // Smoke test intencionalmente vazio: só valida que o contexto sobe.
-        // Testes reais vivem nas classes de cada bounded context.
+        // Intentionally empty: loading the full context is the assertion.
     }
 }

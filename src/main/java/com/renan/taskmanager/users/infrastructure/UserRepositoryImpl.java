@@ -3,7 +3,11 @@ package com.renan.taskmanager.users.infrastructure;
 import com.renan.taskmanager.users.application.UserMapper;
 import com.renan.taskmanager.users.domain.Email;
 import com.renan.taskmanager.users.domain.User;
+import com.renan.taskmanager.users.domain.UserAlreadyExistsException;
 import com.renan.taskmanager.users.domain.UserRepository;
+import jakarta.persistence.EntityManager;
+import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
@@ -23,19 +27,48 @@ import java.util.Optional;
 @Repository
 public class UserRepositoryImpl implements UserRepository {
 
+    private static final String EMAIL_CONSTRAINT = "uc_users_email";
+
     private final UserJpaRepository jpaRepository;
     private final UserMapper mapper;
+    private final EntityManager entityManager;
 
-    public UserRepositoryImpl(UserJpaRepository jpaRepository, UserMapper mapper) {
+    public UserRepositoryImpl(UserJpaRepository jpaRepository, UserMapper mapper,
+                              EntityManager entityManager) {
         this.jpaRepository = jpaRepository;
         this.mapper = mapper;
+        this.entityManager = entityManager;
     }
 
     @Override
     public User save(User user) {
         UserEntity entity = mapper.toEntity(user);
-        UserEntity saved = jpaRepository.save(entity);
-        return mapper.toDomain(saved);
+        try {
+            entityManager.persist(entity);
+            entityManager.flush();
+            return mapper.toDomain(entity);
+        } catch (ConstraintViolationException exception) {
+            throw translateConstraint(exception, user.getEmail());
+        } catch (DataIntegrityViolationException exception) {
+            throw translateConstraint(exception, user.getEmail());
+        }
+    }
+
+    private RuntimeException translateConstraint(ConstraintViolationException exception,
+                                                 Email email) {
+        if (EMAIL_CONSTRAINT.equals(exception.getConstraintName())) {
+            return new UserAlreadyExistsException(email);
+        }
+        return exception;
+    }
+
+    private RuntimeException translateConstraint(DataIntegrityViolationException exception,
+                                                 Email email) {
+        if (exception.getCause() instanceof ConstraintViolationException violation
+                && EMAIL_CONSTRAINT.equals(violation.getConstraintName())) {
+            return new UserAlreadyExistsException(email);
+        }
+        return exception;
     }
 
     @Override

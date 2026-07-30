@@ -51,7 +51,7 @@ class ProjectTaskIT extends AbstractIntegrationTest {
                 .andExpect(status().isOk())
                 .andReturn();
         return objectMapper.readTree(loginResult.getResponse().getContentAsString())
-                .get("accessToken").asText();
+                .get("accessToken").asString();
     }
 
     /**
@@ -66,7 +66,7 @@ class ProjectTaskIT extends AbstractIntegrationTest {
                 .andExpect(status().isCreated())
                 .andReturn();
         return UUID.fromString(objectMapper.readTree(result.getResponse().getContentAsString())
-                .get("id").asText());
+                .get("id").asString());
     }
 
     /**
@@ -81,7 +81,7 @@ class ProjectTaskIT extends AbstractIntegrationTest {
                 .andExpect(status().isCreated())
                 .andReturn();
         return UUID.fromString(objectMapper.readTree(result.getResponse().getContentAsString())
-                .get("id").asText());
+                .get("id").asString());
     }
 
     // ====================================================================

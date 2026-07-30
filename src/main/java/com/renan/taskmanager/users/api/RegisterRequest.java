@@ -12,9 +12,9 @@ import jakarta.validation.constraints.Size;
  * reaches any use case. This keeps domain code free of "missing field" checks.</p>
  *
  * <p><b>Note on password rules here vs {@code Password} value object:</b>
- * The {@code @Size(min=8)} on this DTO is a coarse pre-check for fast feedback.
+ * The {@code @Size(min=8, max=72)} on this DTO is a coarse pre-check for fast feedback.
  * The authoritative strength validation lives in the {@code Password} domain
- * class — that's where the uppercase/lowercase/digit rules live.</p>
+ * class, including the byte-accurate BCrypt input limit.</p>
  *
  * @param email    user email (validated format)
  * @param password plain password (coarse length pre-check; full strength in domain)
@@ -25,9 +25,9 @@ public record RegisterRequest(
         @Schema(description = "User email", example = "alice@example.com")
         @NotBlank @Email String email,
 
-        @Schema(description = "Plain password (min 8 chars; full strength rules enforced server-side)",
+        @Schema(description = "Plain password (8-72 chars and at most 72 UTF-8 bytes; strength rules enforced server-side)",
                 example = "Password123")
-        @NotBlank @Size(min = 8) String password,
+        @NotBlank @Size(min = 8, max = 72) String password,
 
         @Schema(description = "Optional display name", example = "Alice", nullable = true)
         String name

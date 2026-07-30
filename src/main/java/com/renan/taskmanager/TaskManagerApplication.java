@@ -4,10 +4,10 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 /**
- * Ponto de entrada da Task Manager API.
+ * Entry point for the Task Manager API.
  *
- * <p>API REST para gestão de tarefas com autenticação JWT, construída com
- * Java 21 e Spring Boot 3.</p>
+ * <p>REST API for task management with JWT authentication, built with
+ * Java 21 and Spring Boot 4.</p>
  */
 @SpringBootApplication
 public class TaskManagerApplication {

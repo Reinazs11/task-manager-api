@@ -24,10 +24,9 @@ import org.springframework.transaction.annotation.Transactional;
  * </ol>
  *
  * <p><b>Why @Transactional?</b>
- * The "check then insert" sequence must be atomic to prevent races where two
- * concurrent registrations slip past the uniqueness check before either inserts.
- * The database unique constraint is the last line of defense; this transaction
- * is the first.</p>
+ * Registration and its audit event commit together. The early existence check
+ * provides fast feedback, while {@code uc_users_email} remains the concurrency
+ * authority and is translated by the persistence adapter.</p>
  *
  * <p><b>Why does the use case return a UserResponse instead of a domain User?</b>
  * The application layer talks to controllers; DTOs are the natural currency.

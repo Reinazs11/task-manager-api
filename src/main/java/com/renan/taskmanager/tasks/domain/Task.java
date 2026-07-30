@@ -10,7 +10,7 @@ import java.util.Objects;
  *
  * <p>Tasks are created through {@link Project#addTask} so the aggregate root
  * can enforce invariants. Direct construction is allowed but discouraged —
- * it's here for reconstitution from persistence (Step 5).</p>
+ * it exists for reconstitution from persistence.</p>
  *
  * <p><b>Identity:</b> equal by {@link TaskId}, not by fields.</p>
  */

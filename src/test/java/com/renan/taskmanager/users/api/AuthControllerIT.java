@@ -1,7 +1,11 @@
 package com.renan.taskmanager.users.api;
 
 import com.renan.taskmanager.common.AbstractIntegrationTest;
+import com.renan.taskmanager.common.audit.application.AuditEventQueryPort;
+import com.renan.taskmanager.common.audit.domain.AuditAction;
+import com.renan.taskmanager.common.audit.domain.AuditEventRepository;
 import com.renan.taskmanager.common.security.JwtService;
+import com.renan.taskmanager.common.domain.UserId;
 import com.renan.taskmanager.users.domain.Email;
 import com.renan.taskmanager.users.domain.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -10,9 +14,14 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.test.web.servlet.MvcResult;
 
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -40,6 +49,12 @@ class AuthControllerIT extends AbstractIntegrationTest {
     @Autowired
     private JwtService jwtService;
 
+    @Autowired
+    private AuditEventRepository auditEventRepository;
+
+    @Autowired
+    private AuditEventQueryPort auditEventQueryPort;
+
     private static final String VALID_EMAIL = "renan@example.com";
     private static final String VALID_PASSWORD = "Password123";
 
@@ -53,6 +68,7 @@ class AuthControllerIT extends AbstractIntegrationTest {
      */
     @BeforeEach
     void cleanDatabase() {
+        auditEventRepository.deleteAllForTest();
         userRepository.deleteAll();
     }
 
@@ -126,6 +142,43 @@ class AuthControllerIT extends AbstractIntegrationTest {
         }
 
         @Test
+        @DisplayName("Should return the standard 400 error for a weak password")
+        void shouldReturn400WhenPasswordFailsDomainRules() throws Exception {
+            Map<String, Object> body = Map.of(
+                    "email", "weak@example.com",
+                    "password", "password1"
+            );
+
+            mockMvc.perform(post("/api/v1/auth/register")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(body)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.timestamp").isNotEmpty())
+                    .andExpect(jsonPath("$.status").value(400))
+                    .andExpect(jsonPath("$.error").value("Bad Request"))
+                    .andExpect(jsonPath("$.message").value(
+                            "Password must contain at least 1 uppercase letter"))
+                    .andExpect(jsonPath("$.path").value("/api/v1/auth/register"))
+                    .andExpect(jsonPath("$.details").isArray());
+        }
+
+        @Test
+        @DisplayName("Should return 400 when password exceeds 72 UTF-8 bytes")
+        void shouldReturn400WhenPasswordExceedsBcryptLimit() throws Exception {
+            Map<String, Object> body = Map.of(
+                    "email", "long@example.com",
+                    "password", "Aa1" + "é".repeat(35)
+            );
+
+            mockMvc.perform(post("/api/v1/auth/register")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(body)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.message").value(
+                            "Password must not exceed 72 UTF-8 bytes"));
+        }
+
+        @Test
         @DisplayName("Should return 409 when email is already registered")
         void shouldReturn409WhenEmailAlreadyRegistered() throws Exception {
             // First registration succeeds
@@ -141,6 +194,31 @@ class AuthControllerIT extends AbstractIntegrationTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(body)))
                     .andExpect(status().isConflict());
+        }
+
+        @Test
+        @DisplayName("Concurrent registrations should create one user and one audit event")
+        void shouldResolveConcurrentRegistrationWithDatabaseConstraint() throws Exception {
+            CountDownLatch ready = new CountDownLatch(2);
+            CountDownLatch start = new CountDownLatch(1);
+
+            try (var executor = Executors.newFixedThreadPool(2)) {
+                Future<Integer> first = executor.submit(() -> registerConcurrently(ready, start));
+                Future<Integer> second = executor.submit(() -> registerConcurrently(ready, start));
+                ready.await();
+                start.countDown();
+
+                assertThat(List.of(first.get(), second.get()))
+                        .containsExactlyInAnyOrder(201, 409);
+            }
+
+            var saved = userRepository.findByEmail(new Email(VALID_EMAIL)).orElseThrow();
+            long registrationEvents = auditEventQueryPort.findByActor(
+                    UserId.of(saved.getId().value()),
+                    AuditAction.USER_REGISTERED,
+                    PageRequest.of(0, 10)
+            ).getTotalElements();
+            assertThat(registrationEvents).isEqualTo(1);
         }
     }
 
@@ -171,7 +249,7 @@ class AuthControllerIT extends AbstractIntegrationTest {
 
             // The access token should be valid per JwtService
             String accessToken = objectMapper.readTree(result.getResponse().getContentAsString())
-                    .get("accessToken").asText();
+                    .get("accessToken").asString();
             var claims = jwtService.parseAndValidate(accessToken);
             assertThat(jwtService.extractTokenType(claims)).isEqualTo(JwtService.TYPE_ACCESS);
         }
@@ -216,5 +294,17 @@ class AuthControllerIT extends AbstractIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isCreated());
+    }
+
+    private int registerConcurrently(CountDownLatch ready, CountDownLatch start) throws Exception {
+        Map<String, Object> body = Map.of("email", VALID_EMAIL, "password", VALID_PASSWORD);
+        ready.countDown();
+        start.await();
+        return mockMvc.perform(post("/api/v1/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andReturn()
+                .getResponse()
+                .getStatus();
     }
 }

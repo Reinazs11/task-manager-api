@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: task-manager-api-demo
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /actuator/health
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod,demo
+      - key: JDBC_DATABASE_URL
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_ISSUER
+        value: task-manager-api-demo
+      - key: JWT_AUDIENCE
+        value: task-manager-api-demo-users
+      - key: CORS_ALLOWED_ORIGINS
+        value: https://task-manager-api-demo.onrender.com
+      - key: SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE
+        value: "3"
+      - key: SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE
+        value: "1"
+      - key: RATE_LIMIT_TRUST_FORWARDED_FOR
+        value: "true"

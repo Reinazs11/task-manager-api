@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noMethods;
 
 /**
  * Architecture tests using ArchUnit.
@@ -199,6 +200,45 @@ class ArchitectureTest {
                     .orShould().beAnnotatedWith("org.springframework.stereotype.Component")
                     .orShould().beAnnotatedWith("org.springframework.stereotype.Controller")
                     .because("the domain layer is framework-agnostic; Spring stereotypes are forbidden here")
+                    .check(classes);
+        }
+
+        @Test
+        @DisplayName("JPA entities may only live in infrastructure")
+        void jpaEntitiesOnlyInInfrastructure() {
+            classes()
+                    .that().areAnnotatedWith("jakarta.persistence.Entity")
+                    .should().resideInAPackage("..infrastructure..")
+                    .because("persistence entities are infrastructure adapters")
+                    .check(classes);
+        }
+
+        @Test
+        @DisplayName("Spring Data repositories may only live in infrastructure")
+        void springDataRepositoriesOnlyInInfrastructure() {
+            classes()
+                    .that().areAssignableTo("org.springframework.data.repository.Repository")
+                    .should().resideInAPackage("..infrastructure..")
+                    .because("Spring Data repositories are infrastructure adapters")
+                    .check(classes);
+        }
+
+        @Test
+        @DisplayName("@Transactional may not annotate domain or API classes")
+        void transactionalClassesNotInDomainOrApi() {
+            noClasses()
+                    .that().resideInAnyPackage("..domain..", "..api..")
+                    .should().beAnnotatedWith("org.springframework.transaction.annotation.Transactional")
+                    .check(classes);
+        }
+
+        @Test
+        @DisplayName("@Transactional may not annotate domain or API methods")
+        void transactionalMethodsNotInDomainOrApi() {
+            noMethods()
+                    .that().areDeclaredInClassesThat()
+                    .resideInAnyPackage("..domain..", "..api..")
+                    .should().beAnnotatedWith("org.springframework.transaction.annotation.Transactional")
                     .check(classes);
         }
     }

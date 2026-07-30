@@ -11,8 +11,6 @@ target
 **/target
 build
 **/build
-.mvn
-mvnw
 mvnw.cmd
 
 # Local runtime artifacts that should never be baked into an image.

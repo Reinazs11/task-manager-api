@@ -1,11 +1,4 @@
-# docker-compose.yml — Ambiente de desenvolvimento completo.
-# Sobe PostgreSQL + a aplicação Task Manager API com um único comando.
-#
-# Uso:
-#   docker compose up           # sobe tudo (Postgres + App)
-#   docker compose up postgres  # sobe só o banco (útil para rodar app via IDE)
-#   docker compose down         # para e remove containers
-#   docker compose down -v      # para e APAGA os dados do banco
+# Local development stack: PostgreSQL 16 and the API.
 
 services:
   postgres:
@@ -28,10 +21,6 @@ services:
       - taskmanager-net
 
   app:
-    # Em dev, buildamos a imagem localmente (decisão abaixo). Para rodar a
-    # imagem publicada no GHCR (decision #18) em vez de buildar, comente o
-    # bloco `build:` e use:
-    #   image: ghcr.io/reinazs11/task-manager-api:latest
     build:
       context: .
       dockerfile: Dockerfile
@@ -46,14 +35,10 @@ services:
       DB_USER: ${POSTGRES_USER:-taskmanager}
       DB_PASSWORD: ${POSTGRES_PASSWORD:-taskmanager}
       SPRING_PROFILES_ACTIVE: dev
-      # Default de desenvolvimento (mesma chave do application.yml). O .env
-      # tem precedência — em produção, SEMPRE defina JWT_SECRET lá.
       JWT_SECRET: ${JWT_SECRET:-dGhpcy1pcy1hLWRldmVsb3BtZW50LWp3dC1zZWNyZXQta2V5LWRvLW5vdC11c2UtaW4tcHJvZHVjdGlvbi1wbGVhc2U=}
     ports:
       - "8080:8080"
     healthcheck:
-      # Health probe do Actuator: retorna 200 quando o app responde e o BD está UP.
-      # Mesma origem de verdade que o /actuator/health expõe — sem auth (ver SecurityConfig).
       test: ["CMD", "wget", "--spider", "--quiet", "http://localhost:8080/actuator/health"]
       interval: 10s
       timeout: 5s

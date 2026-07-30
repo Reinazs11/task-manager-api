@@ -100,16 +100,17 @@ Authorization header).
 ### 10. BCrypt cost 12, single `PasswordEncoder` bean
 **Status:** Accepted (2026-07)
 
-OWASP 2026 baseline. `BCryptPasswordHasher` injects the bean instead of
-`new BCryptPasswordEncoder(...)` — single source of truth, no drift between
-two independent encoders.
+BCrypt is retained for project compatibility at cost 12.
+`BCryptPasswordHasher` injects the bean instead of constructing another
+encoder, and `Password` rejects inputs above BCrypt's 72-byte UTF-8 limit.
+OWASP prefers Argon2id for new systems; that migration is outside v1 scope.
 
-### 11. OpenAPI disabled in prod
+### 11. OpenAPI disabled in prod, explicitly enabled for the demo
 **Status:** Accepted
 
-`application-prod.yml` sets `springdoc.swagger-ui.enabled=false` and
-`springdoc.api-docs.enabled=false`. Internal docs must not leak to the public
-internet.
+`application-prod.yml` disables Swagger and API docs. `application-demo.yml`
+overrides both only when `prod,demo` is selected for the portfolio deployment.
+Tests lock both profiles and the standard error contract.
 
 ### 12. Actuator: `/actuator/health` and `/actuator/prometheus` exposed
 **Status:** Accepted (2026-07) — updated (2026-07) for Prometheus (see #19)
@@ -121,15 +122,13 @@ public (no JWT) so probes work; `/actuator/prometheus` is JWT-protected (it
 falls under `SecurityConfig`'s `anyRequest().authenticated()`). Everything
 else stays unexposed.
 
-### 13. PIT mutation testing scoped to the domain layer in CI
+### 13. PIT mutation testing scoped to domain and authentication in CI
 **Status:** Accepted (2026-07)
 
-CI runs scoped PIT against the domain packages on every push (~10s, 90
-mutations, ~80% killed). The domain is where invariants live and earns the
-continuous check. Application and infrastructure layers can be mutation-tested
-on demand locally. Whole-project runs in CI would burn ~10 min for little added
-value at this size. **The CI scoping is an accepted limitation** — broaden it
-when the suite grows past ~100 tests and the wall-clock cost is justified.
+CI mutates all domain packages plus login, registration, refresh and logout use
+cases, with an 80% mutation threshold. The v1.0.0 gate generated 234 mutations,
+killed 203 (87%) and reported 93% test strength. Whole-project mutation remains
+out of scope because Spring integration startup dominates its cost.
 
 Justified survivors on the domain layer (do not chase):
 - `hashCode()` returning 0 — no observable contract without a HashMap.
@@ -141,10 +140,9 @@ Justified survivors on the domain layer (do not chase):
 **Status:** Accepted
 
 Unit tests run fast with Surefire (no Docker). Integration tests run with
-Failsafe (Testcontainers). JaCoCo merges both `.exec` files before the 80%
-LINE gate runs, so the check reflects both suites. Gate is at LINE ≥80%; not
-pushing to 100% — remaining gaps are defensive error handling not worth
-provoking in honest tests.
+Failsafe (Testcontainers). JaCoCo merges both `.exec` files before checking
+global LINE ≥80% and BRANCH ≥70%. The `users` authentication context has a
+separate LINE ≥90% / BRANCH ≥80% gate. ArchUnit runs in every build.
 
 ### 15. Auth-endpoint rate limiting: in-memory per-IP token bucket (Bucket4j)
 **Status:** Accepted (2026-07) — closes issue #7
@@ -201,8 +199,8 @@ auto-wires the JDBC URL/credentials without `@DynamicPropertySource` boilerplate
 
 **Context:** A `revoked_refresh_tokens` table records the `jti` of every
 refresh token that was rotated out by `POST /auth/refresh` (one-time-use
-rotation) or revoked by `POST /auth/logout`. `RefreshTokenUseCase` checks the
-store on every refresh and rejects a known `jti` with the same
+rotation) or revoked by `POST /auth/logout`. `RefreshTokenUseCase` atomically
+claims a `jti` and rejects a conflict with the same
 `InvalidCredentialsException` → 401 used for any invalid token (anti-enumeration,
 decision #6). One-time-use rotation closes the replay window that stateless
 rotation left open (a replayed token minting indefinitely) and gives
@@ -214,15 +212,15 @@ old token stays valid; if revocation fails, no new tokens are minted. Redis
 would add a second datastore and a distributed-transaction seam a portfolio
 doesn't need. Lookup is indexed (PK on `jti`). Access tokens are NOT revoked
 (short-lived 15 min; a `jti` check on every request is too costly) — the
-long-lived refresh token is the one that matters. `/auth/logout` is out of the
-rate-limit set (no guessing surface; throttling it would block multi-device
-logout behind a NAT). Revoking the same `jti` twice is a no-op (`existsById`
-before insert), so logout returns 204 twice and replayed refresh returns 401.
+long-lived refresh token is the one that matters. PostgreSQL
+`INSERT ... ON CONFLICT DO NOTHING` is the authority: exactly one concurrent
+refresh acquires the token and mints a new pair. Logout ignores a conflict and
+therefore remains idempotent with 204.
 
 **Consequences:** `RevokedRefreshTokenRepository.deleteExpired(now)` purges
 expired rows, but no scheduler invokes it today (limitation [5]). The hook is
-on the port so a future scheduler need not reach past the domain. Dead rows
-are harmless — `isRevokedAndActive` filters on `expires_at > now`.
+on the port so a future scheduler need not reach past the domain. Dead rows are
+harmless because a repeated `jti` remains rejected after token expiry.
 
 ---
 
@@ -234,8 +232,9 @@ are harmless — `isRevokedAndActive` filters on `expires_at > now`.
 not `docker pull` the app, and the planned deploy (#5) and metrics (#6) had no
 image to consume.
 
-**Decision:** A **separate** workflow (`docker-publish.yml`, not an extension of
-`ci.yml` — single responsibility: tests vs release). Multi-arch
+**Decision:** `docker-publish.yml` is a reusable workflow with no independent
+trigger. `ci.yml` calls it only after verify and PIT pass: PRs never publish;
+`main` and `v*` tags do. Multi-arch
 `linux/amd64,linux/arm64` via QEMU + Buildx; auth via the automatic
 `GITHUB_TOKEN` (no PAT); `type=gha` cache. Tags: on push to `main` → `latest`,
 `main`, `sha-<short>`; on `v*` git tags → semver `1.2.3`, `1.2`, `1`.
@@ -288,7 +287,7 @@ static/long-lived bearer token (the access-token TTL of 15 min makes scrape
 config awkward — a future deploy may mint a dedicated metrics token). The
 login counter does NOT split by failure reason by design.
 
-### Decision #20 — Structured JSON logging in prod (logstash-logback-encoder)
+### Decision #20 — Native Spring Boot structured JSON logging in prod
 
 **Status:** Accepted (2026-07) — closes issue #10
 
@@ -298,31 +297,20 @@ message string. Pairs with #19 — logs say *what happened*, metrics say *how
 often/how slow*.
 
 **Decision:**
-- `logstash-logback-encoder` **pinned to 8.1, not 9.0**: 9.0 migrated to
-  Jackson 3, incompatible with the Jackson 2.x that Spring Boot 3.3 manages.
-- Profile split in `logback-spring.xml`: `dev`/`test` keep human-readable
-  output (DX); only `prod` switches to a `LogstashEncoder` appender.
-- MDC `requestId` → JSON field **`correlationId`** (the name aggregators index
-  by default). The internal MDC key is unchanged — no break to
-  `CorrelationIdFilter`, the dev `%X{requestId}` pattern, or existing tests.
-- HTTP context (`method`/`uri`/`status`/`latencyMs`/`client`) emitted as
-  `StructuredArguments.kv(...)`: readable `key=value` in dev, promoted to
-  JSON fields in prod. This is what makes request logs queryable.
+- Spring Boot 4.1's native `logging.structured.format.console=logstash`
+  replaces the third-party encoder.
+- `dev`/`test` remain human-readable; `prod` emits one JSON object per line.
+- MDC `requestId` is preserved as a first-class JSON field.
+- HTTP context (`method`/`uri`/`status`/`latencyMs`/`client`) uses SLF4J
+  fluent key-value pairs and is promoted to JSON fields in prod.
 - Secret redaction lives in `SanitizingRequestLoggingFilter`, upstream of the
   encoder — switching to JSON does not weaken it. The encoder never sees raw
   headers.
-- JSON is tested two ways because `ListAppender` captures events *before*
-  encoding and never sees JSON: `StructuredLoggingEncoderTest` drives the
-  encoder in isolation to assert the serialized output;
-  `StructuredLoggingProdProfileIT` parses the XML to assert the prod block
-  references a `LogstashEncoder` (it reads the file, not the runtime
-  `LoggerContext`, which is a JVM singleton reused across ITs and reflects
-  whichever profile won the cache race).
+- `StructuredLoggingEncoderTest` drives Boot's native encoder; the prod-profile
+  integration test proves the selected format and service identity.
 
-**Consequences:** Prod logs are machine-parseable; dev readability is
-preserved. The 9.0 upgrade is deferred until Spring Boot adopts Jackson 3.
-Logging stays synchronous (request thread) — async is a follow-up only if the
-load test (#12) finds I/O contention.
+**Consequences:** Prod logs are machine-parseable without another runtime
+dependency; dev readability is preserved. Logging stays synchronous.
 
 ---
 
@@ -361,6 +349,30 @@ audit insert would roll back the business operation — acceptable, since such a
 insert only fails on a real integrity error (DB down), where the business op is
 failing anyway. The table grows unbounded; retention is a documented follow-up
 (limitation [10]).
+
+### Decision #22 — Spring Boot 4.1 and domain-assigned persistence identity
+
+**Status:** Accepted (2026-07)
+
+The project migrated through Spring Boot 3.5.16 before 4.1.0, following the
+official migration path. Boot 4 modular starters, Jackson 3, springdoc 3,
+Testcontainers 2, MapStruct 1.6.3 and jjwt 0.13 form the v1 stack. API version
+metadata comes from Maven build properties.
+
+Hibernate 6.6+ treats a domain-assigned UUID as an existing entity when
+`save` chooses merge. Repository adapters therefore call `EntityManager.persist`
+for new aggregates and merge only known task updates. Domain IDs remain the
+source of identity; generated IDs would create a second authority.
+
+### Decision #23 — Free public demo is an explicit profile
+
+**Status:** Accepted (2026-07) — tracks issue #5
+
+`render.yaml` defines a free Docker web service with
+`autoDeployTrigger: checksPass`; Neon supplies PostgreSQL 16 with TLS.
+`prod,demo` is the only public-docs combination. Secrets remain external,
+Hikari is intentionally small, and no keep-alive traffic defeats Render's idle
+policy. The documented cold start is accepted for a zero-cost portfolio demo.
 
 
 ---

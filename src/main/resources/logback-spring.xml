@@ -1,92 +1,27 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!--
-  Logback configuration with profile-aware log levels and formats.
-
-  Why a custom file and not application.yml 'logging.level.*'?
-  - The console pattern (including the MDC correlation id) and the JSON encoder
-    can only be defined declaratively here; the YAML DSL exposes neither the
-    conversion word %X nor a way to wire a custom Encoder class.
-  - Profile-specific <springProfile> blocks let us ship sane defaults per
-    environment without runtime property plumbing.
-
-  Format split (decision #20):
-    dev | default | test  → CONSOLE      (human-readable, for developer DX)
-    prod                 → CONSOLE_JSON  (one JSON object per line, for Loki/ELK/Datadog)
-
-  Human pattern legend:
-    %-5level         level, padded
-    %date{ISO8601}   timestamp
-    %thread          thread name (useful with pooled servlet threads)
-    %X{requestId}    MDC value set by CorrelationIdFilter (empty if absent)
-    %logger{36}      logger name, abbreviated to 36 chars
-    %msg             message (incl. the key=value rendering of StructuredArguments)
--->
+<!-- Human-readable locally; Spring Boot native Logstash JSON in production. -->
 <configuration>
 
     <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
 
-    <property name="LOG_PATTERN"
-              value="%-5level [%date{ISO8601}] [%thread] [%X{requestId}] %logger{36} - %msg%n"/>
+    <property name="CONSOLE_LOG_PATTERN"
+              value="%-5level [%date{ISO8601}] [%thread] [%X{requestId}] %logger{36} - %kvp - %msg%n"/>
 
-    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
-        <encoder>
-            <pattern>${LOG_PATTERN}</pattern>
-        </encoder>
-    </appender>
-
-    <!--
-      JSON appender — referenced only by the prod profile.
-
-      - includeMdcKeyName whitelists requestId. Spring/Micrometer can push other
-        keys into the MDC; an explicit include list keeps the JSON output focused
-        (no surprise fields from transitive instrumentation).
-      - mdcKeyFieldName renames requestId → correlationId in the JSON output,
-        matching the term Loki/Datadog/Splunk index by default, while leaving the
-        internal MDC key (and CorrelationIdFilter, the dev pattern, and tests)
-        untouched. Zero breaking change; only the prod JSON field name differs.
-      - includeStructuredArguments=true promotes the kv(...) args emitted by
-        SanitizingRequestLoggingFilter (method/uri/status/latencyMs/client) to
-        first-class JSON fields instead of burying them in the message string.
-      - customFields stamps every line with the service identity, so a log
-        shipped out of context in a shared aggregator still says where it came
-        from.
-    -->
-    <appender name="CONSOLE_JSON" class="ch.qos.logback.core.ConsoleAppender">
-        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
-            <includeMdcKeyName>requestId</includeMdcKeyName>
-            <mdcKeyFieldName>requestId=correlationId</mdcKeyFieldName>
-            <includeStructuredArguments>true</includeStructuredArguments>
-            <shortenedLoggerNameLength>36</shortenedLoggerNameLength>
-            <customFields>{"application":"task-manager-api","environment":"prod"}</customFields>
-        </encoder>
-    </appender>
-
-    <!-- Default / development profile: INFO, including SQL warnings. -->
-    <springProfile name="dev | default">
+    <springProfile name="dev | default | test">
+        <include resource="org/springframework/boot/logging/logback/console-appender.xml"/>
         <root level="INFO">
             <appender-ref ref="CONSOLE"/>
         </root>
-        <logger name="com.renan.taskmanager" level="DEBUG"/>
-        <logger name="org.springframework.web" level="INFO"/>
     </springProfile>
 
-    <!-- Test profile: keep noise low so test output is readable. -->
-    <springProfile name="test">
-        <root level="WARN">
-            <appender-ref ref="CONSOLE"/>
-        </root>
-        <logger name="com.renan.taskmanager" level="INFO"/>
-    </springProfile>
-
-    <!-- Production profile: INFO+, silence verbose framework loggers, emit JSON. -->
     <springProfile name="prod">
+        <springProperty name="CONSOLE_LOG_STRUCTURED_FORMAT"
+                        source="logging.structured.format.console"
+                        defaultValue="logstash"/>
+        <include resource="org/springframework/boot/logging/logback/structured-console-appender.xml"/>
         <root level="INFO">
-            <appender-ref ref="CONSOLE_JSON"/>
+            <appender-ref ref="CONSOLE"/>
         </root>
-        <logger name="org.hibernate.SQL" level="WARN"/>
-        <logger name="org.hibernate" level="WARN"/>
-        <logger name="org.springframework" level="WARN"/>
-        <logger name="org.apache" level="WARN"/>
     </springProfile>
 
 </configuration>

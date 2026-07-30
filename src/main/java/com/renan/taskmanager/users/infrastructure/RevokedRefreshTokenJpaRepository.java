@@ -23,7 +23,16 @@ public interface RevokedRefreshTokenJpaRepository extends JpaRepository<RevokedR
      * {@code jti} with an {@code expires_at} still in the future. This is the
      * one-time-use / post-logout check on every {@code /auth/refresh}.
      */
-    boolean existsByJtiAndExpiresAtAfter(UUID jti, Instant now);
+    @Modifying
+    @Query(value = """
+            INSERT INTO revoked_refresh_tokens (jti, user_id, revoked_at, expires_at)
+            VALUES (:jti, :userId, :revokedAt, :expiresAt)
+            ON CONFLICT (jti) DO NOTHING
+            """, nativeQuery = true)
+    int revokeIfAbsent(@Param("jti") UUID jti,
+                       @Param("userId") UUID userId,
+                       @Param("revokedAt") Instant revokedAt,
+                       @Param("expiresAt") Instant expiresAt);
 
     /**
      * Bulk purge of rows whose underlying refresh token has already expired.

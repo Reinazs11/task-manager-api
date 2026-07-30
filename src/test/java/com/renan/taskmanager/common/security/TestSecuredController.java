@@ -8,9 +8,8 @@ import org.springframework.web.bind.annotation.RestController;
  * {@code anyRequest().authenticated()} in {@link SecurityConfig}).
  *
  * <p><b>Why a dedicated test controller?</b>
- * We don't have protected endpoints in the main code yet (they arrive in Step 5
- * with Tasks). But we need to verify that the security infrastructure
- * (filter + config) actually enforces authentication NOW, not later. This
+ * It isolates the security infrastructure contract from business controllers,
+ * proving that the filter and configuration enforce authentication. This
  * controller lives under {@code src/test} so it never ships in the JAR.</p>
  *
  * <p>It's picked up by {@code @SpringBootTest} during context scan because the
