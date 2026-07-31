@@ -10,11 +10,13 @@ A Java 21 REST API for personal projects and tasks. It demonstrates secure
 authentication, ownership rules, PostgreSQL concurrency, observable operations,
 and reproducible delivery without pretending to be a complete product.
 
-**Status:** `v1.0.0 — complete, maintenance only`
+**Status:** `v1.0.0 candidate — maintenance only; release pending demo verification`
 
-**Public demo:** [Swagger UI](https://task-manager-api-demo.onrender.com/swagger-ui.html)
-([Render Free](https://render.com/docs/free) sleeps after inactivity; first access can take about one minute).
-The demo is disposable: never use a real email address or password.
+**Deployment example:** [Render + Neon blueprint](render.yaml) and its
+[setup notes](docs/deployment-example.md). No public demo is claimed here:
+the example is intentionally not presented as a completed deployment.
+Render Free services sleep after inactivity, so a deployed instance may take
+about one minute to wake. Never use a real email address or password in a demo.
 
 ## What this project demonstrates
 
@@ -103,8 +105,11 @@ Run the complete build directly:
 Published image:
 
 ```bash
-docker pull ghcr.io/reinazs11/task-manager-api:1.0.0
+docker pull ghcr.io/reinazs11/task-manager-api:latest
 ```
+
+The `latest` image is published from `main`; the semantic `1.0.0` image tag is
+intentionally reserved for the release after the demo is externally verified.
 
 Production requires `JWT_SECRET`, database credentials, issuer, audience and
 restricted CORS. `prod` disables Swagger; `prod,demo` enables it explicitly.

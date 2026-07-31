@@ -1,3 +1,7 @@
+# Portfolio deployment example only.
+# This blueprint documents a Render Free + external PostgreSQL setup; it does
+# not provision an account, a database, or secrets and is not evidence of a
+# live public deployment. Enter the sync:false values in Render manually.
 services:
   - type: web
     name: task-manager-api-demo
