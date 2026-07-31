@@ -364,15 +364,17 @@ Hibernate 6.6+ treats a domain-assigned UUID as an existing entity when
 for new aggregates and merge only known task updates. Domain IDs remain the
 source of identity; generated IDs would create a second authority.
 
-### Decision #23 — Free public demo is an explicit profile
+### Decision #23 — Free demo blueprint is an explicit profile
 
 **Status:** Accepted (2026-07) — tracks issue #5
 
-`render.yaml` defines a free Docker web service with
-`autoDeployTrigger: checksPass`; Neon supplies PostgreSQL 16 with TLS.
-`prod,demo` is the only public-docs combination. Secrets remain external,
-Hikari is intentionally small, and no keep-alive traffic defeats Render's idle
-policy. The documented cold start is accepted for a zero-cost portfolio demo.
+`render.yaml` defines the intended free Docker web service with
+`autoDeployTrigger: checksPass`; an external PostgreSQL 16 provider such as
+Neon supplies TLS connectivity. `prod,demo` is the only public-docs
+combination. Secrets remain external, Hikari is intentionally small, and no
+keep-alive traffic defeats Render's idle policy. The documented cold start is
+accepted for a zero-cost portfolio demo, but this repository does not claim a
+live deployment until issue #5 is completed and smoke-tested.
 
 
 ---
@@ -447,6 +449,15 @@ matters, or when a compliance regime demands a defined retention window.
 mirroring `RevokedRefreshTokenRepository.deleteExpired`, and a scheduler to
 invoke it (pulls in limitation [5]). A retention window (e.g. 365 days) and
 a "cold archive to object storage" step would be the production shape.
+
+### [24] Cloud deployment files are illustrative until externally verified
+The repository includes a Render blueprint and PostgreSQL connection example
+to demonstrate how the container could be hosted with an external database.
+They do not provision accounts, create a database, store secrets, or prove a
+live deployment. Keeping the example in Git makes the intended environment
+reviewable without presenting an unverified URL as portfolio evidence.
+**Close it when:** a real deployment is created, smoke-tested, and its public
+URL is recorded in the README.
 
 ---
 
